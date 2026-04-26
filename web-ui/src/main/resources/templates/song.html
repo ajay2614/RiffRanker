@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title th:text="${song.title} + ' - RiffRank'"></title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; color: #111; }
+    a { color: #1b4dd8; text-decoration: none; }
+    .card { border: 1px solid #e5e5e5; border-radius: 10px; padding: 12px 14px; max-width: 920px; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    img { border-radius: 10px; border: 1px solid #eee; }
+    .muted { color: #666; }
+    select, button { padding: 10px 12px; border-radius: 8px; }
+    button { border: 1px solid #111; background: #111; color: #fff; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <p><a href="/">← Home</a></p>
+  <div class="card">
+    <div class="row">
+      <div th:if="${song.imageUrl != null}">
+        <img th:src="${song.imageUrl}" alt="cover" width="180" height="180"/>
+      </div>
+      <div style="min-width: 320px;">
+        <h1 th:text="${song.title}"></h1>
+        <p class="muted">
+          <span th:text="${song.artistName}"></span>
+          <span th:if="${song.albumName != null}"> • <span th:text="${song.albumName}"></span></span>
+          <span th:if="${song.releaseYear != null}"> • <span th:text="${song.releaseYear}"></span></span>
+          <span> • </span><span th:text="${song.genre}"></span>
+        </p>
+        <p>
+          <strong>Actual rating:</strong>
+          <span th:if="${song.actualRating != null}" th:text="${#numbers.formatDecimal(song.actualRating, 1, 1)}"></span>
+          <span th:if="${song.actualRating == null}" class="muted">—</span>
+          <span class="muted" th:text="' (' + ${song.ratingCount} + ' votes)'"></span>
+        </p>
+        <p>
+          <a th:href="${song.songUrl}" target="_blank" rel="noreferrer">Open song ↗</a>
+        </p>
+      </div>
+    </div>
+
+    <div th:if="${artist != null}" style="margin-top: 14px;">
+      <h3>Artist</h3>
+      <div class="row">
+        <div th:if="${artist.imageUrl != null}">
+          <img th:src="${artist.imageUrl}" alt="artist" width="80" height="80"/>
+        </div>
+        <div>
+          <div><strong th:text="${artist.name}"></strong></div>
+          <div class="muted" th:text="${artist.id}"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 18px;">
+      <h3>Rate this song</h3>
+      <form method="post" th:action="@{'/song/' + ${song.id} + '/rate'}">
+        <div class="row">
+          <select name="value">
+            <option th:each="v : ${#numbers.sequence(1,10)}" th:value="${v}" th:text="${v}"></option>
+          </select>
+          <button type="submit">Submit rating</button>
+        </div>
+        <p class="muted">Ratings are 1–10 and update the Top 100 weighted score.</p>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

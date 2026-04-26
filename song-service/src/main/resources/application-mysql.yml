@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/riffrank_song
+    username: riffrank
+    password: riffrank
+  flyway:
+    enabled: false
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    properties:
+      hibernate:
+        type:
+          preferred_uuid_jdbc_type: CHAR
+    hibernate:
+      ddl-auto: update

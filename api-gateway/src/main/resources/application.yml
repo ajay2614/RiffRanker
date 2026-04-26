@@ -1,0 +1,51 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins:
+              - http://localhost:5173
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+      routes:
+        - id: song-service
+          uri: lb://song-service
+          predicates:
+            - Path=/api/songs/**
+          filters:
+            - StripPrefix=1
+        - id: artist-service
+          uri: lb://artist-service
+          predicates:
+            - Path=/api/artists/**
+          filters:
+            - StripPrefix=1
+        - id: web-ui
+          uri: lb://web-ui
+          predicates:
+            - Path=/**
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>RiffRank</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; color: #111; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .card { border: 1px solid #e5e5e5; border-radius: 10px; padding: 12px 14px; max-width: 920px; }
+    input { padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; min-width: 320px; }
+    button { padding: 10px 12px; border: 1px solid #111; background: #111; color: #fff; border-radius: 8px; cursor: pointer; }
+    a { color: #1b4dd8; text-decoration: none; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: 10px 8px; border-bottom: 1px solid #eee; text-align: left; }
+    .muted { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>RiffRank</h1>
+  <div class="card">
+    <form method="get" action="/">
+      <div class="row">
+        <input type="text" name="q" placeholder="Search songs or artists…" th:value="${q}"/>
+        <button type="submit">Search</button>
+      </div>
+      <p class="muted">Examples: “Metallica”, “Enter Sandman”, “Nirvana”.</p>
+    </form>
+  </div>
+
+  <div class="card" style="margin-top: 16px;">
+    <h2>Top 100 by genre</h2>
+    <div class="row">
+      <a th:each="g : ${genres}" th:href="@{'/top/' + ${g}}" th:text="${g}" style="padding:6px 10px;border:1px solid #eee;border-radius:999px;"></a>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 16px;">
+    <h2>Search results</h2>
+    <table>
+      <thead>
+      <tr>
+        <th>Song</th>
+        <th>Artist</th>
+        <th>Genre</th>
+        <th>Rating</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:if="${#lists.isEmpty(results)}">
+        <td colspan="4" class="muted">No results yet. Try searching.</td>
+      </tr>
+      <tr th:each="s : ${results}">
+        <td><a th:href="@{'/song/' + ${s.id}}" th:text="${s.title}"></a></td>
+        <td th:text="${s.artistName}"></td>
+        <td th:text="${s.genre}"></td>
+        <td>
+          <span th:if="${s.actualRating != null}" th:text="${#numbers.formatDecimal(s.actualRating, 1, 1)}"></span>
+          <span th:if="${s.actualRating == null}" class="muted">—</span>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

@@ -1,0 +1,79 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: riffrank-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    command: ["mysqld", "--mysql-native-password=ON"]
+    volumes:
+      - riffrank_mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
+
+  eureka-server:
+    build:
+      context: .
+      dockerfile: eureka-server/Dockerfile
+    container_name: riffrank-eureka
+    ports:
+      - "8761:8761"
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: riffrank-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - eureka-server
+
+  artist-service:
+    build:
+      context: .
+      dockerfile: artist-service/Dockerfile
+    container_name: riffrank-artist
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/riffrank_artist
+      SPRING_DATASOURCE_USERNAME: riffrank
+      SPRING_DATASOURCE_PASSWORD: riffrank
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      RIFFRANK_ADMIN_KEY: dev-admin-key
+    depends_on:
+      - mysql
+      - eureka-server
+
+  song-service:
+    build:
+      context: .
+      dockerfile: song-service/Dockerfile
+    container_name: riffrank-song
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/riffrank_song
+      SPRING_DATASOURCE_USERNAME: riffrank
+      SPRING_DATASOURCE_PASSWORD: riffrank
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      RIFFRANK_ADMIN_KEY: dev-admin-key
+      RIFFRANK_RATING_MINIMUM_VOTES: 50
+    depends_on:
+      - mysql
+      - eureka-server
+
+  web-ui:
+    build:
+      context: .
+      dockerfile: web-ui/Dockerfile
+    container_name: riffrank-webui
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      RIFFRANK_GATEWAY_BASE_URL: http://api-gateway:8080
+    depends_on:
+      - api-gateway
+      - eureka-server
+
+volumes:
+  riffrank_mysql_data:
+
