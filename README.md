@@ -158,3 +158,12 @@ curl "http://localhost:8080/api/songs/top?genre=METAL"
 
 - Databases are in-memory H2 for local dev (data resets on restart).
 - Ports: Eureka `8761`, Gateway `8080`, Song `8081`, Artist `8082`, Web UI `8083`.
+
+
+- mvn -pl eureka-server clean spring-boot:run -Dspring-boot.run.profiles=mysql
+- mvn -pl api-gateway spring-boot:run -Dspring-boot.run.profiles=mysql
+- mvn -pl artist-service clean spring-boot:run -Dspring-boot.run.profiles=mysql
+- mvn -pl song-service spring-boot:run -Dspring-boot.run.profiles=mysql
+
+cd web-ui
+np run dev

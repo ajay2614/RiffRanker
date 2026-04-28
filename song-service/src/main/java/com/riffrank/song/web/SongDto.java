@@ -4,19 +4,35 @@ import com.riffrank.song.model.Genre;
 import com.riffrank.song.model.Song;
 import java.util.UUID;
 
-public record SongDto(
-    UUID id,
-    String title,
-    Genre genre,
-    UUID artistId,
-    String artistName,
-    String albumName,
-    Integer releaseYear,
-    String imageUrl,
-    String songUrl,
-    long ratingCount,
-    Double actualRating,
-    Double weightedRating) {
+public class SongDto {
+  private final UUID id;
+  private final String title;
+  private final Genre genre;
+  private final UUID artistId;
+  private final String artistName;
+  private final String albumName;
+  private final Integer releaseYear;
+  private final String imageUrl;
+  private final String songUrl;
+  private final long ratingCount;
+  private final Double actualRating;
+  private final Double weightedRating;
+
+  public SongDto(UUID id, String title, Genre genre, UUID artistId, String artistName, String albumName, Integer releaseYear, String imageUrl, String songUrl, long ratingCount, Double actualRating, Double weightedRating) {
+    this.id = id;
+    this.title = title;
+    this.genre = genre;
+    this.artistId = artistId;
+    this.artistName = artistName;
+    this.albumName = albumName;
+    this.releaseYear = releaseYear;
+    this.imageUrl = imageUrl;
+    this.songUrl = songUrl;
+    this.ratingCount = ratingCount;
+    this.actualRating = actualRating;
+    this.weightedRating = weightedRating;
+  }
+
   public static SongDto from(Song song, Double weightedRating) {
     Double actual =
         song.getRatingCount() == 0 ? null : (song.getRatingSum() * 1.0d) / song.getRatingCount();
@@ -63,4 +79,18 @@ public record SongDto(
         actual,
         weightedRating);
   }
+
+  // Getters
+  public UUID getId() { return id; }
+  public String getTitle() { return title; }
+  public Genre getGenre() { return genre; }
+  public UUID getArtistId() { return artistId; }
+  public String getArtistName() { return artistName; }
+  public String getAlbumName() { return albumName; }
+  public Integer getReleaseYear() { return releaseYear; }
+  public String getImageUrl() { return imageUrl; }
+  public String getSongUrl() { return songUrl; }
+  public long getRatingCount() { return ratingCount; }
+  public Double getActualRating() { return actualRating; }
+  public Double getWeightedRating() { return weightedRating; }
 }

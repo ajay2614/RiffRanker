@@ -1,5 +1,6 @@
 package com.riffrank.song.web;
 
+import com.riffrank.song.client.ITunesSongClient;
 import com.riffrank.song.model.Genre;
 import com.riffrank.song.model.Song;
 import com.riffrank.song.repo.SongRepository;
@@ -23,10 +24,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class SongController {
   private final SongRepository songRepository;
   private final SongRankingService songRankingService;
+  private final ITunesSongClient iTunesSongClient;
 
-  public SongController(SongRepository songRepository, SongRankingService songRankingService) {
+  public SongController(SongRepository songRepository, SongRankingService songRankingService, ITunesSongClient iTunesSongClient) {
     this.songRepository = songRepository;
     this.songRankingService = songRankingService;
+    this.iTunesSongClient = iTunesSongClient;
   }
 
   @PostMapping("/songs")
@@ -149,25 +152,83 @@ public class SongController {
     }
   }
 
-  public record CreateSongRequest(
-      String title,
-      Genre genre,
-      UUID artistId,
-      String artistName,
-      String albumName,
-      Integer releaseYear,
-      String imageUrl,
-      String songUrl) {}
+  @GetMapping("/songs/search/itunes")
+  public ExternalSearchResult searchITunes(
+      @RequestParam("q") String q,
+      @RequestParam(value = "limit", defaultValue = "20") int limit) {
+    if (q == null || q.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "q is required");
+    }
+    ITunesSongClient.ITunesSearchResult iTunesResult = iTunesSongClient.searchSongs(q.trim(), limit);
+    return ExternalSearchResult.fromITunes(iTunesResult);
+  }
 
-  public record UpdateSongRequest(
-      String title,
-      Genre genre,
-      UUID artistId,
-      String artistName,
-      String albumName,
-      Integer releaseYear,
-      String imageUrl,
-      String songUrl) {}
+  public static class CreateSongRequest {
+    private String title;
+    private Genre genre;
+    private UUID artistId;
+    private String artistName;
+    private String albumName;
+    private Integer releaseYear;
+    private String imageUrl;
+    private String songUrl;
 
-  public record AddRatingRequest(int value) {}
+    public CreateSongRequest() {}
+
+    public String title() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public Genre genre() { return genre; }
+    public void setGenre(Genre genre) { this.genre = genre; }
+    public UUID artistId() { return artistId; }
+    public void setArtistId(UUID artistId) { this.artistId = artistId; }
+    public String artistName() { return artistName; }
+    public void setArtistName(String artistName) { this.artistName = artistName; }
+    public String albumName() { return albumName; }
+    public void setAlbumName(String albumName) { this.albumName = albumName; }
+    public Integer releaseYear() { return releaseYear; }
+    public void setReleaseYear(Integer releaseYear) { this.releaseYear = releaseYear; }
+    public String imageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String songUrl() { return songUrl; }
+    public void setSongUrl(String songUrl) { this.songUrl = songUrl; }
+  }
+
+  public static class UpdateSongRequest {
+    private String title;
+    private Genre genre;
+    private UUID artistId;
+    private String artistName;
+    private String albumName;
+    private Integer releaseYear;
+    private String imageUrl;
+    private String songUrl;
+
+    public UpdateSongRequest() {}
+
+    public String title() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public Genre genre() { return genre; }
+    public void setGenre(Genre genre) { this.genre = genre; }
+    public UUID artistId() { return artistId; }
+    public void setArtistId(UUID artistId) { this.artistId = artistId; }
+    public String artistName() { return artistName; }
+    public void setArtistName(String artistName) { this.artistName = artistName; }
+    public String albumName() { return albumName; }
+    public void setAlbumName(String albumName) { this.albumName = albumName; }
+    public Integer releaseYear() { return releaseYear; }
+    public void setReleaseYear(Integer releaseYear) { this.releaseYear = releaseYear; }
+    public String imageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String songUrl() { return songUrl; }
+    public void setSongUrl(String songUrl) { this.songUrl = songUrl; }
+  }
+
+  public static class AddRatingRequest {
+    private int value;
+
+    public AddRatingRequest() {}
+
+    public int value() { return value; }
+    public void setValue(int value) { this.value = value; }
+  }
 }

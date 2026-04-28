@@ -1,10 +1,12 @@
 package com.riffrank.artist.web;
 
+import com.riffrank.artist.client.ITunesArtistClient;
 import com.riffrank.artist.model.Artist;
 import com.riffrank.artist.repo.ArtistRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,9 +21,11 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 public class ArtistController {
   private final ArtistRepository artistRepository;
+  private final ITunesArtistClient iTunesArtistClient;
 
-  public ArtistController(ArtistRepository artistRepository) {
+  public ArtistController(ArtistRepository artistRepository, ITunesArtistClient iTunesArtistClient) {
     this.artistRepository = artistRepository;
+    this.iTunesArtistClient = iTunesArtistClient;
   }
 
   @PostMapping("/artists")
@@ -86,9 +90,22 @@ public class ArtistController {
     return artistRepository.findTop25ByNameContainingIgnoreCaseOrderByNameAsc(name.trim());
   }
 
-  public record CreateArtistRequest(
-      String name, String imageUrl, String biography, String spotifyUrl, String websiteUrl) {}
-
-  public record UpdateArtistRequest(
-      String name, String imageUrl, String biography, String spotifyUrl, String websiteUrl) {}
+  @GetMapping("/artists/search/itunes")
+  public ExternalArtistSearchResult searchITunes(
+      @RequestParam("q") String q,
+      @RequestParam(value = "limit", defaultValue = "20") int limit) {
+    if (q == null || q.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "q is required");
+    }
+    try {
+      ITunesArtistClient.ITunesArtistSearchResult iTunesResult = iTunesArtistClient.searchArtists(q.trim(), limit);
+      if (iTunesResult == null) {
+        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "No result from iTunes");
+      }
+      return ExternalArtistSearchResult.fromITunes(iTunesResult);
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error: " + e.getMessage());
+    }
+  }
 }

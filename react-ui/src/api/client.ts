@@ -1,4 +1,4 @@
-import type { ArtistDto, Genre, SongDto } from "./types";
+import type { ArtistDto, ExternalArtistSearchResult, ExternalSearchResult, Genre, SongDto } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
@@ -33,6 +33,8 @@ async function request<T>(
 export const api = {
   songs: {
     search: (q: string) => request<SongDto[]>("GET", `/api/songs/search?q=${encodeURIComponent(q)}`),
+    searchExternal: (q: string, limit: number = 10, offset: number = 0) =>
+      request<ExternalSearchResult>("GET", `/api/songs/search/itunes?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`),
     top: (genre: Genre) =>
       request<SongDto[]>("GET", `/api/songs/top?genre=${encodeURIComponent(genre)}`),
     get: (id: string) => request<SongDto>("GET", `/api/songs/${encodeURIComponent(id)}`),
@@ -82,6 +84,8 @@ export const api = {
     get: (id: string) => request<ArtistDto>("GET", `/api/artists/${encodeURIComponent(id)}`),
     search: (name: string) =>
       request<ArtistDto[]>("GET", `/api/artists/search?name=${encodeURIComponent(name)}`),
+    searchExternal: (q: string, limit: number = 10, offset: number = 0) =>
+      request<ExternalArtistSearchResult>("GET", `/api/artists/search/itunes?q=${encodeURIComponent(q)}&limit=${limit}`),
     create: (
       adminKey: string,
       payload: {

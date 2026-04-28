@@ -3,6 +3,7 @@ package com.riffrank.webui.web;
 import com.riffrank.webui.model.ArtistDto;
 import com.riffrank.webui.model.SongDto;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
@@ -32,9 +33,9 @@ public class SongPageController {
     }
 
     ArtistDto artist = null;
-    if (song.artistId() != null) {
+    if (song.getArtistId() != null) {
       try {
-        artist = gateway.get().uri("/api/artists/{id}", song.artistId()).retrieve().body(ArtistDto.class);
+        artist = gateway.get().uri("/api/artists/{id}", song.getArtistId()).retrieve().body(ArtistDto.class);
       } catch (HttpClientErrorException e) {
         if (e.getStatusCode() != HttpStatus.NOT_FOUND) {
           throw e;
@@ -49,10 +50,11 @@ public class SongPageController {
 
   @PostMapping("/song/{id}/rate")
   public String rate(@PathVariable UUID id, @RequestParam("value") int value) {
+    Object payload = Objects.requireNonNull(Map.of("value", value));
     gateway
         .post()
         .uri("/api/songs/{id}/ratings", id)
-        .body(Map.of("value", value))
+        .body(payload)
         .retrieve()
         .toBodilessEntity();
     return "redirect:/song/" + id;
