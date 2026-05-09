@@ -1,21 +1,21 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { SongDto, ExternalSongResult, ExternalArtist, ExternalArtistSearchResult } from "../api/types";
+import type { ExternalSongResult, ExternalArtist, ExternalAlbumResult } from "../api/types";
 
 export default function HomePage() {
   const [params, setParams] = useSearchParams();
   const initial = params.get("q") ?? "";
   const [q, setQ] = useState(initial);
+  const [hasSearched, setHasSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [externalResults, setExternalResults] = useState<ExternalSongResult[]>([]);
   const [externalArtists, setExternalArtists] = useState<ExternalArtist[]>([]);
-  const [searchType, setSearchType] = useState<"songs" | "artists">("songs");
+  const [externalAlbums, setExternalAlbums] = useState<ExternalAlbumResult[]>([]);
+  const [activeType, setActiveType] = useState<"songs" | "artists" | "albums">("songs");
   const [ratingState, setRatingState] = useState<Record<string, number>>({});
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const limit = 20;
+  const limit = 5;
 
   const canSearch = useMemo(() => q.trim().length > 0, [q]);
 
@@ -24,48 +24,25 @@ export default function HomePage() {
     const trimmed = q.trim();
     setParams(trimmed ? { q: trimmed } : {});
     if (!trimmed) {
+      setHasSearched(false);
       setExternalResults([]);
       setExternalArtists([]);
+      setExternalAlbums([]);
       return;
     }
+    setHasSearched(true);
     setLoading(true);
     setError(null);
-    setOffset(0);
     try {
-      if (searchType === "artists") {
-        const data = await api.artists.searchExternal(trimmed, limit, 0);
-        setExternalArtists(data.artists);
-        setHasMore(data.artists.length === limit);
-        setExternalResults([]);
-      } else {
-        const data = await api.songs.searchExternal(trimmed, limit, 0);
-        setExternalResults(data.results);
-        setHasMore(data.results.length === limit);
-        setExternalArtists([]);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }
+      const [songsData, artistsData, albumsData] = await Promise.all([
+        api.songs.searchExternal(trimmed, limit, 0),
+        api.artists.searchExternal(trimmed, limit, 0),
+        api.songs.searchExternalAlbums(trimmed, limit)
+      ]);
 
-  async function loadMore() {
-    if (!q.trim()) return;
-    setLoading(true);
-    setError(null);
-    const newOffset = offset + limit;
-    try {
-      if (searchType === "artists") {
-        const data = await api.artists.searchExternal(q.trim(), limit, newOffset);
-        setExternalArtists(prev => [...prev, ...data.artists]);
-        setHasMore(data.artists.length === limit);
-      } else {
-        const data = await api.songs.searchExternal(q.trim(), limit, newOffset);
-        setExternalResults(prev => [...prev, ...data.results]);
-        setHasMore(data.results.length === limit);
-      }
-      setOffset(newOffset);
+      setExternalResults(songsData.results);
+      setExternalArtists(artistsData.artists);
+      setExternalAlbums(albumsData.results);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -89,97 +66,78 @@ export default function HomePage() {
       await api.songs.rate(newSong.id, rating);
       alert(`Rated "${externalSong.title}" ${rating}/10 and saved to database!`);
     } catch (err) {
-      alert("Error saving and rating song: " + (err instanceof Error ? err.message : String(err)));
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("401")) {
+        alert("Please sign in to rate songs.");
+        return;
+      }
+      alert("Error saving and rating song: " + msg);
     }
   }
 
   return (
     <div className="card">
-      <h2 style={{ marginTop: 0 }}>Search iTunes Songs & Artists</h2>
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ marginBottom: 8 }}>
-          <label>
-            <input
-              type="radio"
-              checked={searchType === "songs"}
-              onChange={() => setSearchType("songs")}
-            />
-            {" "}Search Songs
-          </label>
-          <label style={{ marginLeft: 16 }}>
-            <input
-              type="radio"
-              checked={searchType === "artists"}
-              onChange={() => setSearchType("artists")}
-            />
-            {" "}Search Artists
-          </label>
-        </div>
-      </div>
+      <h2 style={{ marginTop: 0 }}>Search iTunes</h2>
 
       <form onSubmit={onSubmit} className="row">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={searchType === "songs" ? "Search songs…" : "Search artists…"}
+          placeholder="Search songs or artists…"
         />
         <button className="primary" type="submit" disabled={!canSearch || loading}>
           {loading ? "Searching…" : "Search"}
         </button>
       </form>
       <div className="muted" style={{ marginTop: 8 }}>
-        {searchType === "songs"
-          ? "Examples: Bohemian Rhapsody, Enter Sandman, Imagine"
-          : "Examples: Queen, Metallica, The Beatles"}
+        Examples: Queen, Metallica, Bohemian Rhapsody, Enter Sandman
       </div>
 
-      {error ? (
+      {!hasSearched ? null : error ? (
         <div style={{ marginTop: 12, color: "#ffb4b4" }}>{error}</div>
       ) : (
         <div style={{ marginTop: 14 }}>
-          <h3 style={{ marginBottom: 10 }}>Results from iTunes</h3>
+          <div className="row" style={{ gap: 8, marginTop: 12 }}>
+            <button
+              type="button"
+              className={activeType === "songs" ? "primary" : ""}
+              onClick={() => setActiveType("songs")}
+              disabled={loading}
+            >
+              Songs
+            </button>
+            <button
+              type="button"
+              className={activeType === "artists" ? "primary" : ""}
+              onClick={() => setActiveType("artists")}
+              disabled={loading}
+            >
+              Artists
+            </button>
+            <button
+              type="button"
+              className={activeType === "albums" ? "primary" : ""}
+              onClick={() => setActiveType("albums")}
+              disabled={loading}
+            >
+              Albums
+            </button>
+          </div>
 
-          {searchType === "artists" ? (
-            <div>
-              {externalArtists.length === 0 ? (
-                <div className="muted">No artists found</div>
-              ) : (
-                <div>
-                  {externalArtists.map((artist) => (
-                    <div key={artist.id} className="card" style={{ marginBottom: 8 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <h4 style={{ margin: 0 }}>{artist.name}</h4>
-                          {artist.type && (
-                            <div className="muted" style={{ fontSize: "0.9em" }}>Genre: {artist.type}</div>
-                          )}
-                        </div>
-                        <div>
-                          <a href={`https://itunes.apple.com/search?term=${encodeURIComponent(artist.name)}`} target="_blank" rel="noopener noreferrer" className="button">
-                            iTunes
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {hasMore && (
-                    <button onClick={loadMore} disabled={loading} style={{ marginTop: 12 }}>
-                      {loading ? "Loading…" : "Load More"}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div>
+          {activeType === "songs" ? (
+            <div style={{ marginTop: 12 }}>
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+                <h4 style={{ margin: 0 }}>Songs</h4>
+                <Link className="pill" to="/admin/songs">Admin</Link>
+              </div>
               {externalResults.length === 0 ? (
-                <div className="muted">No results yet.</div>
+                <div className="muted" style={{ marginTop: 8 }}>No songs yet.</div>
               ) : (
-                <div>
-                  {externalResults.map((s) => (
+                <div style={{ marginTop: 8 }}>
+                  {externalResults.slice(0, 5).map((s) => (
                     <div key={s.id} className="card" style={{ marginBottom: 8 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                        <div style={{ minWidth: 0 }}>
                           <h4 style={{ margin: 0 }}>{s.title}</h4>
                           {s.artistName && (
                             <div className="muted" style={{ fontSize: "0.9em" }}>by {s.artistName}</div>
@@ -209,11 +167,73 @@ export default function HomePage() {
                       </div>
                     </div>
                   ))}
-                  {hasMore && (
-                    <button onClick={loadMore} disabled={loading} style={{ marginTop: 12 }}>
-                      {loading ? "Loading…" : "Load More"}
-                    </button>
-                  )}
+                </div>
+              )}
+            </div>
+          ) : activeType === "artists" ? (
+            <div style={{ marginTop: 12 }}>
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+                <h4 style={{ margin: 0 }}>Artists</h4>
+                <Link className="pill" to="/admin/artists">Admin</Link>
+              </div>
+              {externalArtists.length === 0 ? (
+                <div className="muted" style={{ marginTop: 8 }}>No artists found</div>
+              ) : (
+                <div style={{ marginTop: 8 }}>
+                  {externalArtists.slice(0, 5).map((artist) => (
+                    <div key={artist.id} className="card" style={{ marginBottom: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <h4 style={{ margin: 0 }}>{artist.name}</h4>
+                          {artist.type && (
+                            <div className="muted" style={{ fontSize: "0.9em" }}>Genre: {artist.type}</div>
+                          )}
+                        </div>
+                        <div>
+                          <a
+                            href={`https://music.apple.com/search?term=${encodeURIComponent(artist.name)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="button"
+                          >
+                            iTunes
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ marginTop: 12 }}>
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+                <h4 style={{ margin: 0 }}>Albums</h4>
+              </div>
+              {externalAlbums.length === 0 ? (
+                <div className="muted" style={{ marginTop: 8 }}>No albums found</div>
+              ) : (
+                <div style={{ marginTop: 8 }}>
+                  {externalAlbums.slice(0, 5).map((album) => (
+                    <div key={album.id} className="card" style={{ marginBottom: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <h4 style={{ margin: 0 }}>{album.title}</h4>
+                          {album.artistName ? (
+                            <div className="muted" style={{ fontSize: "0.9em" }}>by {album.artistName}</div>
+                          ) : null}
+                        </div>
+                        <a
+                          href={album.albumUrl || `https://music.apple.com/search?term=${encodeURIComponent(album.title)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="button"
+                        >
+                          iTunes
+                        </a>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

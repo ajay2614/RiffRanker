@@ -52,7 +52,8 @@ export default function SongPage() {
       await api.songs.rate(songId, rateValue);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg.includes("401") ? "Please sign in to rate songs." : msg);
     } finally {
       setRateBusy(false);
     }

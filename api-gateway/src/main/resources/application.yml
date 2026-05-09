@@ -22,6 +22,12 @@ spring:
               - "*"
             allowCredentials: true
       routes:
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**,/api/tokens/**
+          filters:
+            - StripPrefix=1
         - id: song-service
           uri: lb://song-service
           predicates:

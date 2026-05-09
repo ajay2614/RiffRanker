@@ -1,6 +1,24 @@
-import type { ArtistDto, ExternalArtistSearchResult, ExternalSearchResult, Genre, SongDto } from "./types";
+import type {
+  ArtistDto,
+  ExternalAlbumSearchResult,
+  ExternalArtistSearchResult,
+  ExternalSearchResult,
+  ExternalTopResult,
+  Genre,
+  SongDto
+} from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
+export const AUTH_TOKEN_STORAGE = "riffrank_auth_token";
+
+export function getAuthToken(): string | null {
+  return localStorage.getItem(AUTH_TOKEN_STORAGE);
+}
+
+export function setAuthToken(token: string | null) {
+  if (!token) localStorage.removeItem(AUTH_TOKEN_STORAGE);
+  else localStorage.setItem(AUTH_TOKEN_STORAGE, token);
+}
 
 function url(path: string): string {
   return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
@@ -12,9 +30,11 @@ async function request<T>(
   body?: unknown,
   headers?: Record<string, string>
 ): Promise<T> {
+  const token = getAuthToken();
   const resp = await fetch(url(path), {
     method,
     headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(body ? { "Content-Type": "application/json" } : {}),
       ...(headers ?? {})
     },
@@ -31,10 +51,23 @@ async function request<T>(
 }
 
 export const api = {
+  auth: {
+    register: (username: string, password: string) =>
+      request<{ id: string; username: string; createdAt: string }>("POST", "/api/users/register", {
+        username,
+        password
+      }),
+    login: (username: string, password: string) =>
+      request<{ token: string }>("POST", "/api/users/login", { username, password })
+  },
   songs: {
     search: (q: string) => request<SongDto[]>("GET", `/api/songs/search?q=${encodeURIComponent(q)}`),
     searchExternal: (q: string, limit: number = 10, offset: number = 0) =>
       request<ExternalSearchResult>("GET", `/api/songs/search/itunes?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`),
+    searchExternalAlbums: (q: string, limit: number = 10) =>
+      request<ExternalAlbumSearchResult>("GET", `/api/songs/search/itunes/albums?q=${encodeURIComponent(q)}&limit=${limit}`),
+    searchExternalTop: (q: string) =>
+      request<ExternalTopResult>("GET", `/api/songs/search/itunes/top?q=${encodeURIComponent(q)}`),
     top: (genre: Genre) =>
       request<SongDto[]>("GET", `/api/songs/top?genre=${encodeURIComponent(genre)}`),
     get: (id: string) => request<SongDto>("GET", `/api/songs/${encodeURIComponent(id)}`),

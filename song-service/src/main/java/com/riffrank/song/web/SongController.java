@@ -15,19 +15,27 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 public class SongController {
   private final SongRepository songRepository;
+  private final com.riffrank.song.repo.SongRatingRepository songRatingRepository;
   private final SongRankingService songRankingService;
   private final ITunesSongClient iTunesSongClient;
 
-  public SongController(SongRepository songRepository, SongRankingService songRankingService, ITunesSongClient iTunesSongClient) {
+  public SongController(
+      SongRepository songRepository,
+      com.riffrank.song.repo.SongRatingRepository songRatingRepository,
+      SongRankingService songRankingService,
+      ITunesSongClient iTunesSongClient) {
     this.songRepository = songRepository;
+    this.songRatingRepository = songRatingRepository;
     this.songRankingService = songRankingService;
     this.iTunesSongClient = iTunesSongClient;
   }
@@ -142,14 +150,37 @@ public class SongController {
 
   @PostMapping("/songs/{id}/ratings")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void addRating(@PathVariable UUID id, @RequestBody AddRatingRequest request) {
+  @Transactional
+  public void addRating(
+      @PathVariable UUID id,
+      @RequestHeader(value = "X-USER-ID", required = false) UUID userId,
+      @RequestBody AddRatingRequest request) {
     if (request.value() < 1 || request.value() > 10) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "value must be between 1 and 10");
     }
-    int updated = songRepository.addRating(id, request.value());
-    if (updated == 0) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "song not found");
+    if (userId == null) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "sign in required");
     }
+    Song song =
+        songRepository
+            .findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "song not found"));
+
+    java.time.Instant now = java.time.Instant.now();
+    songRatingRepository
+        .findBySongIdAndUserId(id, userId)
+        .ifPresentOrElse(
+            existing -> {
+              int delta = request.value() - existing.getValue();
+              existing.setValue(request.value());
+              existing.setUpdatedAt(now);
+              songRatingRepository.save(existing);
+              songRepository.addRatingDelta(id, delta);
+            },
+            () -> {
+              songRatingRepository.save(new com.riffrank.song.model.SongRating(id, userId, request.value(), now, now));
+              songRepository.addRating(id, request.value());
+            });
   }
 
   @GetMapping("/songs/search/itunes")
@@ -161,6 +192,28 @@ public class SongController {
     }
     ITunesSongClient.ITunesSearchResult iTunesResult = iTunesSongClient.searchSongs(q.trim(), limit);
     return ExternalSearchResult.fromITunes(iTunesResult);
+  }
+
+  @GetMapping("/songs/search/itunes/albums")
+  public ExternalAlbumSearchResult searchITunesAlbums(
+      @RequestParam("q") String q,
+      @RequestParam(value = "limit", defaultValue = "20") int limit) {
+    if (q == null || q.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "q is required");
+    }
+    ITunesSongClient.ITunesAlbumSearchResult iTunesResult = iTunesSongClient.searchAlbums(q.trim(), limit);
+    return ExternalAlbumSearchResult.fromITunes(iTunesResult);
+  }
+
+  @GetMapping("/songs/search/itunes/top")
+  public ExternalTopResult searchITunesTop(@RequestParam("q") String q) {
+    if (q == null || q.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "q is required");
+    }
+    ITunesSongClient.ITunesAnySearchResult top = iTunesSongClient.searchTopAny(q.trim());
+    ITunesSongClient.ITunesAnyResult first =
+        (top.getResults() == null || top.getResults().isEmpty()) ? null : top.getResults().get(0);
+    return ExternalTopResult.fromITunes(first);
   }
 
   public static class CreateSongRequest {

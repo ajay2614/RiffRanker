@@ -21,7 +21,8 @@ In separate terminals:
 2. `mvn -pl api-gateway spring-boot:run`
 3. `mvn -pl artist-service spring-boot:run`
 4. `mvn -pl song-service spring-boot:run`
-5. `mvn -pl web-ui spring-boot:run`
+5. `mvn -pl user-service spring-boot:run`
+6. `mvn -pl web-ui spring-boot:run`
 
 Then open:
 
@@ -58,7 +59,7 @@ Open `http://localhost:8080/`.
 
 ## Use MySQL instead of in-memory H2
 
-Start MySQL (creates `riffrank_artist` and `riffrank_song` + user `riffrank`/`riffrank`):
+Start MySQL (creates `riffrank_artist`, `riffrank_song`, and `riffrank_user` databases + user `riffrank`/`riffrank`):
 
 ```bash
 docker compose up -d
@@ -69,12 +70,14 @@ Run services with the MySQL profile:
 ```bash
 mvn -pl artist-service spring-boot:run -Dspring-boot.run.profiles=mysql
 mvn -pl song-service spring-boot:run -Dspring-boot.run.profiles=mysql
+mvn -pl user-service spring-boot:run -Dspring-boot.run.profiles=mysql
 ```
 
 MySQL connection settings live in:
 
 - `artist-service/src/main/resources/application-mysql.yml`
 - `song-service/src/main/resources/application-mysql.yml`
+- `user-service/src/main/resources/application-mysql.yml`
 
 ## Admin actions (add artist / song)
 
@@ -123,6 +126,31 @@ curl -X PATCH http://localhost:8080/api/songs/<SONG_UUID> \
   -d '{"imageUrl":"https://example.com/new-cover.jpg"}'
 ```
 
+## Authentication (Sign In / Register)
+
+Register a new user:
+
+```bash
+curl -X POST http://localhost:8080/api/users/register \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"myuser","password":"mypassword"}'
+```
+
+Login (returns auth token):
+
+```bash
+curl -X POST http://localhost:8080/api/users/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"myuser","password":"mypassword"}'
+```
+
+Use the returned token for authenticated requests:
+
+```bash
+curl "http://localhost:8080/api/songs/search?q=sandman" \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
 ## User actions (search / rate / Top 100)
 
 Search:
@@ -157,13 +185,34 @@ curl "http://localhost:8080/api/songs/top?genre=METAL"
 ## Notes
 
 - Databases are in-memory H2 for local dev (data resets on restart).
-- Ports: Eureka `8761`, Gateway `8080`, Song `8081`, Artist `8082`, Web UI `8083`.
+- Ports: Eureka `8761`, Gateway `8080`, Artist `8082`, Song `8081`, User `8084`, Web UI `8083`.
 
+## Quick Start (with MySQL)
 
-- mvn -pl eureka-server clean spring-boot:run -Dspring-boot.run.profiles=mysql
-- mvn -pl api-gateway spring-boot:run -Dspring-boot.run.profiles=mysql
-- mvn -pl artist-service clean spring-boot:run -Dspring-boot.run.profiles=mysql
-- mvn -pl song-service spring-boot:run -Dspring-boot.run.profiles=mysql
+Start MySQL first:
+```bash
+docker compose up -d
+```
 
-cd web-ui
-np run dev
+Then run services in separate terminals with MySQL profile:
+```bash
+# Terminal 1
+mvn -pl eureka-server spring-boot:run
+
+# Terminal 2
+mvn -pl api-gateway spring-boot:run
+
+# Terminal 3
+mvn -pl artist-service spring-boot:run -Dspring-boot.run.profiles=mysql
+
+# Terminal 4
+mvn -pl song-service spring-boot:run -Dspring-boot.run.profiles=mysql
+
+# Terminal 5
+mvn -pl user-service spring-boot:run -Dspring-boot.run.profiles=mysql
+
+# Terminal 6
+cd react-ui && npm run dev
+```
+
+Then open `http://localhost:5173/` for the React UI.

@@ -49,6 +49,46 @@ export type ExternalSearchResult = {
   results: ExternalSongResult[];
 };
 
+export type ExternalTopResult =
+  | {
+      type: "SONG";
+      song: {
+        id: string | null;
+        title: string | null;
+        artistName: string | null;
+        albumName: string | null;
+        imageUrl: string | null;
+        previewUrl: string | null;
+      };
+      artist: null;
+    }
+  | {
+      type: "ARTIST";
+      song: null;
+      artist: {
+        id: string | null;
+        name: string | null;
+        primaryGenre: string | null;
+      };
+    }
+  | {
+      type: "UNKNOWN";
+      song: null;
+      artist: null;
+    };
+
+export type ExternalAlbumResult = {
+  id: string;
+  title: string;
+  artistName: string;
+  imageUrl: string | null;
+  albumUrl: string | null;
+};
+
+export type ExternalAlbumSearchResult = {
+  results: ExternalAlbumResult[];
+};
+
 export type ExternalArtist = {
   id: string;
   name: string;

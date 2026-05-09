@@ -59,6 +59,13 @@ public interface SongRepository extends JpaRepository<Song, UUID> {
       nativeQuery = true)
   int addRating(@Param("id") UUID id, @Param("value") int value);
 
+  @Transactional
+  @Modifying
+  @Query(
+      value = "update song set rating_sum = rating_sum + :delta where id = :id",
+      nativeQuery = true)
+  int addRatingDelta(@Param("id") UUID id, @Param("delta") int delta);
+
   Optional<Song> findById(UUID id);
 
   interface SongTopRow {

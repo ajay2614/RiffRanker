@@ -7,6 +7,7 @@ import AdminArtistsPage from "../views/AdminArtistsPage";
 import AdminSongsPage from "../views/AdminSongsPage";
 import AdminEditArtistPage from "../views/AdminEditArtistPage";
 import AdminEditSongPage from "../views/AdminEditSongPage";
+import SignInPage from "../views/SignInPage";
 
 function LinkTab({ to, label }: { to: string; label: string }) {
   return (
@@ -27,6 +28,7 @@ export default function App() {
         <div className="brand">RiffRank</div>
         <LinkTab to="/" label="Home" />
         <LinkTab to="/top/ROCK" label="Top" />
+        <LinkTab to="/signin" label="Sign in" />
         <LinkTab to="/admin" label="Admin" />
       </div>
 
@@ -34,6 +36,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/top/:genre" element={<TopPage />} />
         <Route path="/song/:id" element={<SongPage />} />
+        <Route path="/signin" element={<SignInPage />} />
         <Route path="/admin" element={<AdminDashboardPage />} />
         <Route path="/admin/artists" element={<AdminArtistsPage />} />
         <Route path="/admin/artists/edit" element={<AdminEditArtistPage />} />

@@ -27,7 +27,10 @@ public class AdminKeyFilter extends OncePerRequestFilter {
             || HttpMethod.PUT.matches(request.getMethod())
             || HttpMethod.PATCH.matches(request.getMethod())
             || HttpMethod.DELETE.matches(request.getMethod()));
-    if (isWrite && request.getRequestURI().startsWith("/songs")) {
+    String uri = request.getRequestURI();
+    boolean isSongWrite = isWrite && uri.startsWith("/songs");
+    boolean isRatingWrite = HttpMethod.POST.matches(request.getMethod()) && uri.matches("^/songs/[^/]+/ratings$");
+    if (isSongWrite && !isRatingWrite) {
       String provided = request.getHeader("X-ADMIN-KEY");
       if (provided == null || !provided.equals(adminKey)) {
         response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid X-ADMIN-KEY");
