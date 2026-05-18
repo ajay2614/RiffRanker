@@ -20,7 +20,7 @@ public class SongRating {
   @Column(name = "user_id", nullable = false)
   private UUID userId;
 
-  @Column(nullable = false)
+  @Column(name = "rating_value", nullable = false)
   private int value;
 
   @Column(name = "created_at", nullable = false)
@@ -50,4 +50,3 @@ public class SongRating {
   public Instant getUpdatedAt() { return updatedAt; }
   public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }
-

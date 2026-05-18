@@ -1,4 +1,6 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, Route, Routes, useNavigate, useLocation } from "react-router-dom";
+import { getAuthToken, setAuthToken } from "../api/client";
 import HomePage from "../views/HomePage";
 import TopPage from "../views/TopPage";
 import SongPage from "../views/SongPage";
@@ -21,6 +23,37 @@ function LinkTab({ to, label }: { to: string; label: string }) {
   );
 }
 
+function AuthTab() {
+  const [isLoggedIn, setIsLoggedIn] = useState(!!getAuthToken());
+  const nav = useNavigate();
+  const location = useLocation();
+
+  // Re-check auth state when location changes (after sign-in redirect)
+  useEffect(() => {
+    setIsLoggedIn(!!getAuthToken());
+  }, [location]);
+
+  function handleLogout() {
+    setAuthToken(null);
+    setIsLoggedIn(false);
+    nav("/");
+  }
+
+  if (isLoggedIn) {
+    return (
+      <button
+        onClick={handleLogout}
+        className="pill muted"
+        style={{ borderColor: "rgba(255,255,255,0.18)", background: "none", border: "1px solid", cursor: "pointer" }}
+      >
+        Logout
+      </button>
+    );
+  }
+
+  return <LinkTab to="/signin" label="Sign in" />;
+}
+
 export default function App() {
   return (
     <div className="container">
@@ -28,7 +61,7 @@ export default function App() {
         <div className="brand">RiffRank</div>
         <LinkTab to="/" label="Home" />
         <LinkTab to="/top/ROCK" label="Top" />
-        <LinkTab to="/signin" label="Sign in" />
+        <AuthTab />
         <LinkTab to="/admin" label="Admin" />
       </div>
 

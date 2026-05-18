@@ -53,8 +53,8 @@ export default function HomePage() {
   async function onRateExternal(externalSong: ExternalSongResult, rating: number) {
     setRatingState(prev => ({ ...prev, [externalSong.id]: rating }));
     try {
-      // For external songs, we need to add them to our database first
-      const newSong = await api.songs.create("", {
+      // Rate the song - if it doesn't exist, it will be created automatically with the provided details
+      await api.songs.rate(externalSong.id, rating, {
         title: externalSong.title,
         genre: externalSong.genre,
         artistName: externalSong.artistName,
@@ -62,9 +62,7 @@ export default function HomePage() {
         imageUrl: externalSong.imageUrl,
         songUrl: externalSong.previewUrl || `https://music.apple.com/us/search?term=${encodeURIComponent(externalSong.title)}`
       });
-      // Then rate it
-      await api.songs.rate(newSong.id, rating);
-      alert(`Rated "${externalSong.title}" ${rating}/10 and saved to database!`);
+      alert(`Rated "${externalSong.title}" ${rating}/10!`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("401")) {

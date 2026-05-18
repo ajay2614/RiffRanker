@@ -71,8 +71,20 @@ export const api = {
     top: (genre: Genre) =>
       request<SongDto[]>("GET", `/api/songs/top?genre=${encodeURIComponent(genre)}`),
     get: (id: string) => request<SongDto>("GET", `/api/songs/${encodeURIComponent(id)}`),
-    rate: (id: string, value: number) =>
-      request<void>("POST", `/api/songs/${encodeURIComponent(id)}/ratings`, { value }),
+    rate: (id: string, value: number, songDetails?: {
+      title?: string;
+      genre?: Genre;
+      artistId?: string | null;
+      artistName?: string;
+      albumName?: string | null;
+      releaseYear?: number | null;
+      imageUrl?: string | null;
+      songUrl?: string;
+    }) =>
+      request<void>("POST", `/api/songs/${encodeURIComponent(id)}/ratings`, { 
+        value,
+        ...songDetails
+      }),
     create: (
       adminKey: string,
       payload: {

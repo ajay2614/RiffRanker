@@ -31,3 +31,6 @@ riffrank:
   rating:
     minimum-votes: 50
 
+jwt:
+  secret: "riffrank-super-secret-key-for-jwt-hs512-algorithm-minimum-64-chars-required-for-security-compliance"
+  expiration-ms: 2592000000

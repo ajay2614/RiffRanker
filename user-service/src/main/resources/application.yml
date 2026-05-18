@@ -1,5 +1,9 @@
 server:
   port: 8084
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-exception: true
 
 spring:
   application:
@@ -10,10 +14,10 @@ spring:
     password:
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create-drop
     open-in-view: false
   flyway:
-    enabled: true
+    enabled: false
 
 eureka:
   client:
@@ -26,3 +30,10 @@ management:
       exposure:
         include: health,info
 
+jwt:
+  secret: "riffrank-super-secret-key-for-jwt-hs512-algorithm-minimum-64-chars-required-for-security-compliance"
+  expiration-ms: 2592000000
+
+logging:
+  level:
+    root: INFO
