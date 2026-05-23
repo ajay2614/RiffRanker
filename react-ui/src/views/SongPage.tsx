@@ -78,7 +78,7 @@ export default function SongPage() {
 
         <div style={{ minWidth: 280 }}>
           <div className="muted">
-            <Link to={`/top/${song.genre}`}>{song.genre}</Link>
+            <Link to="/top">{song.genre}</Link>
           </div>
           <h2 style={{ marginTop: 4, marginBottom: 6 }}>{song.title}</h2>
           <div className="muted">

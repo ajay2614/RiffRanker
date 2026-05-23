@@ -27,12 +27,18 @@ public interface SongRepository extends JpaRepository<Song, UUID> {
   Double genreAverageActualRating(@Param("genre") Genre genre);
 
   @Query(
+      "select avg(cast(s.ratingSum as double) / s.ratingCount) " +
+      "from Song s " +
+      "where s.ratingCount > 0")
+  Double globalAverageActualRating();
+
+  @Query(
       value =
           "select " +
-          "  s.id as id, " +
+          "  cast(s.id as varchar(36)) as id, " +
           "  s.title as title, " +
           "  s.genre as genre, " +
-          "  s.artist_id as artistId, " +
+          "  cast(s.artist_id as varchar(36)) as artistId, " +
           "  s.artist_name as artistName, " +
           "  s.album_name as albumName, " +
           "  s.release_year as releaseYear, " +
@@ -52,6 +58,30 @@ public interface SongRepository extends JpaRepository<Song, UUID> {
   List<SongTopRow> top100ByGenreWeighted(
       @Param("genre") String genre, @Param("c") double c, @Param("m") double m);
 
+  @Query(
+      value =
+          "select " +
+          "  cast(s.id as varchar(36)) as id, " +
+          "  s.title as title, " +
+          "  s.genre as genre, " +
+          "  cast(s.artist_id as varchar(36)) as artistId, " +
+          "  s.artist_name as artistName, " +
+          "  s.album_name as albumName, " +
+          "  s.release_year as releaseYear, " +
+          "  s.image_url as imageUrl, " +
+          "  s.song_url as songUrl, " +
+          "  s.rating_sum as ratingSum, " +
+          "  s.rating_count as ratingCount, " +
+          "  ( " +
+          "    ( (cast(s.rating_count as double) / (cast(s.rating_count as double) + :m)) * coalesce((cast(s.rating_sum as double) / nullif(s.rating_count, 0)), 0) ) " +
+          "    + ( (:m / (cast(s.rating_count as double) + :m)) * :c ) " +
+          "  ) as weightedRating " +
+          "from song s " +
+          "order by weightedRating desc " +
+          "limit 100",
+      nativeQuery = true)
+  List<SongTopRow> top100Weighted(@Param("c") double c, @Param("m") double m);
+
   @Transactional
   @Modifying
   @Query(
@@ -69,13 +99,13 @@ public interface SongRepository extends JpaRepository<Song, UUID> {
   Optional<Song> findById(UUID id);
 
   interface SongTopRow {
-    UUID getId();
+    String getId();
 
     String getTitle();
 
     String getGenre();
 
-    UUID getArtistId();
+    String getArtistId();
 
     String getArtistName();
 

@@ -1,40 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import type { Genre, SongDto } from "../api/types";
-
-const GENRES: Genre[] = [
-  "ROCK",
-  "METAL",
-  "POP",
-  "JAZZ",
-  "HIPHOP",
-  "ELECTRONIC",
-  "CLASSICAL",
-  "COUNTRY",
-  "INDIE",
-  "OTHER"
-];
-
-function isGenre(value: string | undefined): value is Genre {
-  return value != null && (GENRES as string[]).includes(value);
-}
+import type { SongDto } from "../api/types";
 
 export default function TopPage() {
-  const { genre } = useParams();
-  const selectedGenre: Genre = isGenre(genre) ? genre : "ROCK";
   const [songs, setSongs] = useState<SongDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const genreTabs = useMemo(() => GENRES, []);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     api.songs
-      .top(selectedGenre)
+      .top()
       .then((data) => {
         if (!cancelled) setSongs(data);
       })
@@ -47,23 +26,15 @@ export default function TopPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedGenre]);
+  }, []);
 
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h2 style={{ margin: 0 }}>Top 100 {selectedGenre}</h2>
+          <h2 style={{ margin: 0 }}>Top 100</h2>
           <div className="muted">Sorted by weighted rating</div>
         </div>
-      </div>
-
-      <div className="row" style={{ marginTop: 12 }}>
-        {genreTabs.map((g) => (
-          <Link key={g} className={g === selectedGenre ? "pill" : "pill muted"} to={`/top/${g}`}>
-            {g}
-          </Link>
-        ))}
       </div>
 
       {loading ? (
@@ -88,7 +59,7 @@ export default function TopPage() {
               {songs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="muted">
-                    No songs yet for this genre.
+                    No songs yet.
                   </td>
                 </tr>
               ) : (

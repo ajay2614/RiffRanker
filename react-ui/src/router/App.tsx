@@ -60,14 +60,14 @@ export default function App() {
       <div className="nav">
         <div className="brand">RiffRank</div>
         <LinkTab to="/" label="Home" />
-        <LinkTab to="/top/ROCK" label="Top" />
+        <LinkTab to="/top" label="Top" />
         <AuthTab />
         <LinkTab to="/admin" label="Admin" />
       </div>
 
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/top/:genre" element={<TopPage />} />
+        <Route path="/top" element={<TopPage />} />
         <Route path="/song/:id" element={<SongPage />} />
         <Route path="/signin" element={<SignInPage />} />
         <Route path="/admin" element={<AdminDashboardPage />} />

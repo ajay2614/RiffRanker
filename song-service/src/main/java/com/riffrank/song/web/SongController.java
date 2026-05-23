@@ -149,8 +149,9 @@ public class SongController {
   }
 
   @GetMapping("/songs/top")
-  public List<SongDto> top100ByGenre(@RequestParam("genre") Genre genre) {
-    return songRankingService.top100(genre);
+  public List<SongDto> top100ByGenre(@RequestParam(value = "genre", required = false) String genre) {
+    // Genre filtering disabled for now; keep the query param for compatibility but ignore it.
+    return songRankingService.top100All();
   }
 
   @PostMapping("/songs/{id}/ratings")

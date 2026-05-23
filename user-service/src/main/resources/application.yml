@@ -9,15 +9,25 @@ spring:
   application:
     name: user-service
   datasource:
-    url: jdbc:h2:mem:users;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
-    username: sa
-    password:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/riffrank_user
+    username: ${MYSQL_USER:riffrank}
+    password: ${MYSQL_PASSWORD:riffrank}
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
+    database-platform: org.hibernate.dialect.MySQL8Dialect
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 20
+          fetch_size: 50
+        order_inserts: true
+        order_updates: true
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
     open-in-view: false
   flyway:
-    enabled: false
+    enabled: true
+    locations: classpath:db/migration
 
 eureka:
   client:

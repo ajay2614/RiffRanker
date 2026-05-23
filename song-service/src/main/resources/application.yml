@@ -5,15 +5,21 @@ spring:
   application:
     name: song-service
   datasource:
-    url: jdbc:h2:mem:songs;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
-    username: sa
-    password:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/riffrank_song
+    username: ${MYSQL_USER:riffrank}
+    password: ${MYSQL_PASSWORD:riffrank}
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
+    database-platform: org.hibernate.dialect.MySQL8Dialect
+    properties:
+      hibernate:
+        type:
+          preferred_uuid_jdbc_type: CHAR
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     open-in-view: false
   flyway:
-    enabled: true
+    enabled: false
 
 eureka:
   client:
@@ -29,7 +35,7 @@ management:
 riffrank:
   admin-key: dev-admin-key
   rating:
-    minimum-votes: 50
+    minimum-votes: 1
 
 jwt:
   secret: "riffrank-super-secret-key-for-jwt-hs512-algorithm-minimum-64-chars-required-for-security-compliance"

@@ -68,8 +68,7 @@ export const api = {
       request<ExternalAlbumSearchResult>("GET", `/api/songs/search/itunes/albums?q=${encodeURIComponent(q)}&limit=${limit}`),
     searchExternalTop: (q: string) =>
       request<ExternalTopResult>("GET", `/api/songs/search/itunes/top?q=${encodeURIComponent(q)}`),
-    top: (genre: Genre) =>
-      request<SongDto[]>("GET", `/api/songs/top?genre=${encodeURIComponent(genre)}`),
+    top: () => request<SongDto[]>("GET", `/api/songs/top`),
     get: (id: string) => request<SongDto>("GET", `/api/songs/${encodeURIComponent(id)}`),
     rate: (id: string, value: number, songDetails?: {
       title?: string;

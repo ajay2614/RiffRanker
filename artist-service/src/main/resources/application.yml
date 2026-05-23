@@ -5,12 +5,18 @@ spring:
   application:
     name: artist-service
   datasource:
-    url: jdbc:h2:mem:artists;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
-    username: sa
-    password:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/riffrank_artist
+    username: ${MYSQL_USER:riffrank}
+    password: ${MYSQL_PASSWORD:riffrank}
+    driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
+    database-platform: org.hibernate.dialect.MySQL8Dialect
+    properties:
+      hibernate:
+        type:
+          preferred_uuid_jdbc_type: CHAR
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     open-in-view: false
   flyway:
     enabled: false
@@ -28,4 +34,3 @@ management:
 
 riffrank:
   admin-key: dev-admin-key
-
