@@ -13,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -64,6 +65,7 @@ public class SongController {
     Song song =
         new Song(
             UUID.randomUUID(),
+            null,
             request.title().trim(),
             request.genre(),
             request.artistId(),
@@ -81,7 +83,7 @@ public class SongController {
 
   @GetMapping("/songs/{id}")
   public SongDto get(@PathVariable String id) {
-    UUID songId = songUuidFromPath(id);
+    UUID songId = resolveSongId(id);
     Song song =
         songRepository
             .findById(songId)
@@ -91,7 +93,7 @@ public class SongController {
 
   @PatchMapping("/songs/{id}")
   public SongDto update(@PathVariable String id, @RequestBody UpdateSongRequest request) {
-    UUID songId = songUuidFromPath(id);
+    UUID songId = resolveSongId(id);
     Song song =
         songRepository
             .findById(songId)
@@ -138,6 +140,18 @@ public class SongController {
     return SongDto.from(saved, null);
   }
 
+  @DeleteMapping("/songs/{id}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  @Transactional
+  public void delete(@PathVariable String id) {
+    UUID songId = resolveSongId(id);
+    if (!songRepository.existsById(songId)) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "song not found");
+    }
+    songRatingRepository.deleteBySongId(songId);
+    songRepository.deleteById(songId);
+  }
+
   @GetMapping("/songs/search")
   public List<SongDto> search(@RequestParam("q") String q) {
     if (q == null || q.isBlank()) {
@@ -161,32 +175,40 @@ public class SongController {
       @PathVariable String id,
       @RequestBody AddRatingRequest request,
       @RequestHeader(value = "X-USER-ID", required = false) String userIdHeader) {
-    UUID songId = songUuidFromPath(id);
+    String rawId = id == null ? null : id.trim();
+    String externalId = isUuid(rawId) ? null : rawId;
+    UUID resolvedSongId = resolveSongId(rawId);
     if (request.value() < 1 || request.value() > 10) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "value must be between 1 and 10");
     }
     
-    String userIdStr = userIdHeader;
-    if (userIdStr == null || userIdStr.isBlank()) {
-      // Fallback: Extract userId from SecurityContext (set by JwtAuthenticationFilter)
-      Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-      if (authentication != null && authentication.isAuthenticated()) {
-        userIdStr = (String) authentication.getPrincipal();
-      }
-    }
-    if (userIdStr == null) {
-      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "sign in required");
-    }
-    
-    UUID userId;
-    try {
-      userId = UUID.fromString(userIdStr);
-    } catch (IllegalArgumentException e) {
-      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid user");
-    }
+    UUID userId = requireUserId(userIdHeader);
     
     // Get or create song (upsert details when provided)
-    Song song = songRepository.findById(songId).orElse(null);
+    Song song = songRepository.findById(resolvedSongId).orElse(null);
+    if (song == null && externalId != null) {
+      song = songRepository.findByExternalId(externalId).orElse(null);
+      if (song != null) {
+        resolvedSongId = song.getId();
+      }
+    }
+    if (song == null
+        && request.title() != null
+        && !request.title().isBlank()
+        && request.artistName() != null
+        && !request.artistName().isBlank()) {
+      song =
+          songRepository
+              .findFirstByTitleIgnoreCaseAndArtistNameIgnoreCase(
+                  request.title().trim(), request.artistName().trim())
+              .orElse(null);
+      if (song != null) {
+        resolvedSongId = song.getId();
+        if (externalId != null && (song.getExternalId() == null || song.getExternalId().isBlank())) {
+          song.setExternalId(externalId);
+        }
+      }
+    }
     if (song == null) {
       // Song doesn't exist - create it if song details are provided
       if (request.title() == null || request.title().isBlank()) {
@@ -206,7 +228,8 @@ public class SongController {
       }
       
       song = new Song(
-          songId,
+          resolvedSongId,
+          externalId,
           request.title().trim(),
           request.genre(),
           request.artistId(),
@@ -221,6 +244,10 @@ public class SongController {
       song = songRepository.save(song);
     } else {
       boolean changed = false;
+      if (externalId != null && (song.getExternalId() == null || song.getExternalId().isBlank())) {
+        song.setExternalId(externalId);
+        changed = true;
+      }
       if (request.title() != null && !request.title().isBlank() && !request.title().trim().equals(song.getTitle())) {
         song.setTitle(request.title().trim());
         changed = true;
@@ -262,22 +289,35 @@ public class SongController {
       }
     }
 
+    final UUID songIdForRating = resolvedSongId;
     java.time.Instant now = java.time.Instant.now();
     songRatingRepository
-        .findBySongIdAndUserId(songId, userId)
+        .findBySongIdAndUserId(songIdForRating, userId)
         .ifPresentOrElse(
             existing -> {
               int delta = request.value() - existing.getValue();
               existing.setValue(request.value());
               existing.setUpdatedAt(now);
               songRatingRepository.save(existing);
-              songRepository.addRatingDelta(songId, delta);
+              songRepository.addRatingDelta(songIdForRating, delta);
             },
             () -> {
               songRatingRepository.save(
-                  new com.riffrank.song.model.SongRating(songId, userId, request.value(), now, now));
-              songRepository.addRating(songId, request.value());
+                  new com.riffrank.song.model.SongRating(songIdForRating, userId, request.value(), now, now));
+              songRepository.addRating(songIdForRating, request.value());
             });
+  }
+
+  @GetMapping("/songs/{id}/ratings/me")
+  public MyRatingResponse myRating(
+      @PathVariable String id,
+      @RequestHeader(value = "X-USER-ID", required = false) String userIdHeader) {
+    UUID songId = resolveSongId(id);
+    UUID userId = requireUserId(userIdHeader);
+    return songRatingRepository
+        .findBySongIdAndUserId(songId, userId)
+        .map(r -> new MyRatingResponse(r.getValue()))
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "no rating"));
   }
 
   @GetMapping("/songs/search/itunes")
@@ -407,7 +447,7 @@ public class SongController {
     public void setSongUrl(String songUrl) { this.songUrl = songUrl; }
   }
 
-  private static UUID songUuidFromPath(String rawId) {
+  private UUID resolveSongId(String rawId) {
     if (rawId == null || rawId.isBlank()) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "song id is required");
     }
@@ -415,8 +455,42 @@ public class SongController {
     try {
       return UUID.fromString(trimmed);
     } catch (IllegalArgumentException ignored) {
-      // Support external numeric/string ids (e.g., iTunes trackId) by mapping deterministically to a UUID.
-      return UUID.nameUUIDFromBytes(("external-song-id:" + trimmed).getBytes(StandardCharsets.UTF_8));
+      return songRepository
+          .findByExternalId(trimmed)
+          .map(Song::getId)
+          .orElseGet(
+              () -> UUID.nameUUIDFromBytes(("external-song-id:" + trimmed).getBytes(StandardCharsets.UTF_8)));
     }
   }
+
+  private static boolean isUuid(String value) {
+    if (value == null || value.isBlank()) return false;
+    try {
+      UUID.fromString(value.trim());
+      return true;
+    } catch (IllegalArgumentException e) {
+      return false;
+    }
+  }
+
+  private static UUID requireUserId(String userIdHeader) {
+    String userIdStr = userIdHeader;
+    if (userIdStr == null || userIdStr.isBlank()) {
+      // Fallback: Extract userId from SecurityContext (set by JwtAuthenticationFilter)
+      Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+      if (authentication != null && authentication.isAuthenticated()) {
+        userIdStr = (String) authentication.getPrincipal();
+      }
+    }
+    if (userIdStr == null || userIdStr.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "sign in required");
+    }
+    try {
+      return UUID.fromString(userIdStr.trim());
+    } catch (IllegalArgumentException e) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid user");
+    }
+  }
+
+  public record MyRatingResponse(int value) {}
 }

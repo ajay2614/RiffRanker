@@ -16,6 +16,9 @@ public class Song {
   @Column(name = "id", nullable = false)
   private UUID id;
 
+  @Column(name = "external_id", unique = true)
+  private String externalId;
+
   @Column(name = "title", nullable = false)
   private String title;
 
@@ -54,6 +57,7 @@ public class Song {
 
   public Song(
       UUID id,
+      String externalId,
       String title,
       Genre genre,
       UUID artistId,
@@ -66,6 +70,7 @@ public class Song {
       long ratingCount,
       Instant createdAt) {
     this.id = id;
+    this.externalId = externalId;
     this.title = title;
     this.genre = genre;
     this.artistId = artistId;
@@ -81,6 +86,14 @@ public class Song {
 
   public UUID getId() {
     return id;
+  }
+
+  public String getExternalId() {
+    return externalId;
+  }
+
+  public void setExternalId(String externalId) {
+    this.externalId = externalId;
   }
 
   public String getTitle() {

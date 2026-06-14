@@ -8,5 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SongRatingRepository extends JpaRepository<SongRating, SongRatingKey> {
   Optional<SongRating> findBySongIdAndUserId(UUID songId, UUID userId);
-}
 
+  void deleteBySongId(UUID songId);
+}

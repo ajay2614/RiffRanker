@@ -133,6 +133,32 @@ export default function AdminEditSongPage() {
     }
   }
 
+  async function deleteSelected() {
+    if (!selected) return;
+    const confirmed = window.confirm(`Delete "${selected.title}" by ${selected.artistName}?`);
+    if (!confirmed) return;
+
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.songs.delete(adminKey, selected.id);
+      setResults((current) => current.filter((song) => song.id !== selected.id));
+      setSelected(null);
+      setTitle("");
+      setArtistId("");
+      setArtistName("");
+      setAlbumName("");
+      setReleaseYear("");
+      setImageUrl("");
+      setSongUrl("");
+      setMessage("Deleted song.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
@@ -219,6 +245,9 @@ export default function AdminEditSongPage() {
             <button className="primary" disabled={busy} type="submit">
               {busy ? "Working…" : "Update song"}
             </button>
+            <button type="button" disabled={busy} onClick={deleteSelected}>
+              Delete song
+            </button>
           </div>
         </form>
       ) : (
@@ -231,4 +260,3 @@ export default function AdminEditSongPage() {
     </div>
   );
 }
-

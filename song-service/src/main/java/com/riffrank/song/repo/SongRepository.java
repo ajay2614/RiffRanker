@@ -13,6 +13,10 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 public interface SongRepository extends JpaRepository<Song, UUID> {
+  Optional<Song> findByExternalId(String externalId);
+
+  Optional<Song> findFirstByTitleIgnoreCaseAndArtistNameIgnoreCase(String title, String artistName);
+
   @Query(
       "select s from Song s " +
       "where lower(s.title) like lower(concat('%', :q, '%')) " +
@@ -35,23 +39,25 @@ public interface SongRepository extends JpaRepository<Song, UUID> {
   @Query(
       value =
           "select " +
-          "  cast(s.id as varchar(36)) as id, " +
-          "  s.title as title, " +
-          "  s.genre as genre, " +
-          "  cast(s.artist_id as varchar(36)) as artistId, " +
-          "  s.artist_name as artistName, " +
-          "  s.album_name as albumName, " +
-          "  s.release_year as releaseYear, " +
-          "  s.image_url as imageUrl, " +
-          "  s.song_url as songUrl, " +
-          "  s.rating_sum as ratingSum, " +
-          "  s.rating_count as ratingCount, " +
+          "  min(cast(s.id as char(36))) as id, " +
+          "  any_value(s.title) as title, " +
+          "  any_value(s.genre) as genre, " +
+          "  any_value(cast(s.artist_id as char(36))) as artistId, " +
+          "  any_value(s.artist_name) as artistName, " +
+          "  any_value(s.album_name) as albumName, " +
+          "  any_value(s.release_year) as releaseYear, " +
+          "  any_value(s.image_url) as imageUrl, " +
+          "  any_value(s.song_url) as songUrl, " +
+          "  sum(s.rating_sum) as ratingSum, " +
+          "  sum(s.rating_count) as ratingCount, " +
           "  ( " +
-          "    ( (cast(s.rating_count as double) / (cast(s.rating_count as double) + :m)) * coalesce((cast(s.rating_sum as double) / nullif(s.rating_count, 0)), 0) ) " +
-          "    + ( (:m / (cast(s.rating_count as double) + :m)) * :c ) " +
+          "    ( (cast(sum(s.rating_count) as double) / (cast(sum(s.rating_count) as double) + :m)) " +
+          "      * coalesce((cast(sum(s.rating_sum) as double) / nullif(sum(s.rating_count), 0)), 0) ) " +
+          "    + ( (:m / (cast(sum(s.rating_count) as double) + :m)) * :c ) " +
           "  ) as weightedRating " +
           "from song s " +
           "where s.genre = :genre " +
+          "group by lower(s.title), lower(s.artist_name), coalesce(lower(s.album_name), '') " +
           "order by weightedRating desc " +
           "limit 100",
       nativeQuery = true)
@@ -61,22 +67,24 @@ public interface SongRepository extends JpaRepository<Song, UUID> {
   @Query(
       value =
           "select " +
-          "  cast(s.id as varchar(36)) as id, " +
-          "  s.title as title, " +
-          "  s.genre as genre, " +
-          "  cast(s.artist_id as varchar(36)) as artistId, " +
-          "  s.artist_name as artistName, " +
-          "  s.album_name as albumName, " +
-          "  s.release_year as releaseYear, " +
-          "  s.image_url as imageUrl, " +
-          "  s.song_url as songUrl, " +
-          "  s.rating_sum as ratingSum, " +
-          "  s.rating_count as ratingCount, " +
+          "  min(cast(s.id as char(36))) as id, " +
+          "  any_value(s.title) as title, " +
+          "  any_value(s.genre) as genre, " +
+          "  any_value(cast(s.artist_id as char(36))) as artistId, " +
+          "  any_value(s.artist_name) as artistName, " +
+          "  any_value(s.album_name) as albumName, " +
+          "  any_value(s.release_year) as releaseYear, " +
+          "  any_value(s.image_url) as imageUrl, " +
+          "  any_value(s.song_url) as songUrl, " +
+          "  sum(s.rating_sum) as ratingSum, " +
+          "  sum(s.rating_count) as ratingCount, " +
           "  ( " +
-          "    ( (cast(s.rating_count as double) / (cast(s.rating_count as double) + :m)) * coalesce((cast(s.rating_sum as double) / nullif(s.rating_count, 0)), 0) ) " +
-          "    + ( (:m / (cast(s.rating_count as double) + :m)) * :c ) " +
+          "    ( (cast(sum(s.rating_count) as double) / (cast(sum(s.rating_count) as double) + :m)) " +
+          "      * coalesce((cast(sum(s.rating_sum) as double) / nullif(sum(s.rating_count), 0)), 0) ) " +
+          "    + ( (:m / (cast(sum(s.rating_count) as double) + :m)) * :c ) " +
           "  ) as weightedRating " +
           "from song s " +
+          "group by lower(s.title), lower(s.artist_name), coalesce(lower(s.album_name), '') " +
           "order by weightedRating desc " +
           "limit 100",
       nativeQuery = true)

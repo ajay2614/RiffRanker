@@ -84,6 +84,8 @@ export const api = {
         value,
         ...songDetails
       }),
+    myRating: (id: string) =>
+      request<{ value: number }>("GET", `/api/songs/${encodeURIComponent(id)}/ratings/me`),
     create: (
       adminKey: string,
       payload: {
@@ -121,6 +123,13 @@ export const api = {
         "PATCH",
         `/api/songs/${encodeURIComponent(id)}`,
         payload,
+        adminKey ? { "X-ADMIN-KEY": adminKey } : {}
+      ),
+    delete: (adminKey: string, id: string) =>
+      request<void>(
+        "DELETE",
+        `/api/songs/${encodeURIComponent(id)}`,
+        undefined,
         adminKey ? { "X-ADMIN-KEY": adminKey } : {}
       )
   },
