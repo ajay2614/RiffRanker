@@ -309,6 +309,7 @@ td {
 }
 
 .artist-avatar,
+.artist-thumb,
 .album-thumb {
   width: 56px;
   height: 56px;
@@ -325,6 +326,10 @@ td {
 }
 
 .album-thumb {
+  object-fit: cover;
+}
+
+.artist-thumb {
   object-fit: cover;
 }
 
@@ -364,6 +369,11 @@ td {
   width: min(100%, 760px);
 }
 
+.artist-detail-modal {
+  max-height: 82vh;
+  margin: auto;
+}
+
 .app-modal-close {
   position: absolute;
   top: 12px;
@@ -393,6 +403,21 @@ td {
   width: 82px;
   height: 82px;
   font-size: 1.3rem;
+}
+
+.artist-dialog-image {
+  width: 132px;
+  height: 132px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.artist-summary {
+  margin-top: 16px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .album-dialog-art {

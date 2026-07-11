@@ -210,7 +210,7 @@ export function SongDetailModal({ song, isOpen, onClose, onRate }: SongDetailMod
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 1000;
+          z-index: 1100;
           animation: fadeIn 0.2s ease-in-out;
         }
 
@@ -255,7 +255,7 @@ export function SongDetailModal({ song, isOpen, onClose, onRate }: SongDetailMod
           border: none;
           font-size: 24px;
           cursor: pointer;
-          z-index: 1001;
+          z-index: 1101;
           padding: 4px 8px;
           color: rgba(245, 245, 245, 0.72);
           transition: color 0.2s;
