@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ExternalSongResult, SongDto } from "../api/types";
 import { api } from "../api/client";
 
@@ -7,6 +7,25 @@ interface SongDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRate: (rating: number) => Promise<void>;
+}
+
+function getLargeArtworkUrl(imageUrl: string | null) {
+  return imageUrl?.replace(/\/\d+x\d+bb\.(jpg|png|webp)$/i, "/600x600bb.$1") ?? null;
+}
+
+function getItunesSearchUrl(title: string, artistName: string) {
+  return `https://music.apple.com/search?term=${encodeURIComponent(title)} ${encodeURIComponent(artistName)}`;
+}
+
+function getFallbackMonogram(title: string, artistName: string) {
+  const seed = (artistName || title)
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+  return seed || "RR";
 }
 
 export function SongDetailModal({ song, isOpen, onClose, onRate }: SongDetailModalProps) {
@@ -19,6 +38,9 @@ export function SongDetailModal({ song, isOpen, onClose, onRate }: SongDetailMod
   const [ratingError, setRatingError] = useState<string | null>(null);
   const [myRating, setMyRating] = useState<number | null>(null);
 
+  const artworkUrl = useMemo(() => getLargeArtworkUrl(song.imageUrl), [song.imageUrl]);
+  const itunesUrl = useMemo(() => getItunesSearchUrl(song.title, song.artistName), [song.artistName, song.title]);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -30,18 +52,15 @@ export function SongDetailModal({ song, isOpen, onClose, onRate }: SongDetailMod
     setRatingError(null);
     setMyRating(null);
 
-    // Fetch song data from backend to get current ratings
     Promise.all([
       api.songs.get(song.id).catch(() => null),
       api.songs.top().catch(() => []),
-      api.songs.myRating(song.id).then(r => r.value).catch(() => null)
+      api.songs.myRating(song.id).then((r) => r.value).catch(() => null)
     ])
       .then(([songInfo, topSongs, mine]) => {
-        if (songInfo) {
-          setSongData(songInfo);
-        }
+        if (songInfo) setSongData(songInfo);
         setMyRating(mine);
-        
+
         const rank = topSongs.findIndex((s) => s.id === song.id);
         if (rank !== -1) {
           setTopRank(rank + 1);
@@ -49,7 +68,7 @@ export function SongDetailModal({ song, isOpen, onClose, onRate }: SongDetailMod
         }
       })
       .catch(() => {
-        // Silent fail - if fetch fails, just show without data
+        // Best effort only.
       })
       .finally(() => {
         setLoading(false);
@@ -61,10 +80,10 @@ export function SongDetailModal({ song, isOpen, onClose, onRate }: SongDetailMod
 
     setRatingLoading(true);
     setRatingError(null);
+
     try {
       const ratingNum = parseInt(nextRating);
       await onRate(ratingNum);
-      // Refresh song data after rating
       const updated = await api.songs.get(song.id).catch(() => null);
       if (updated) {
         setSongData(updated);
@@ -80,463 +99,102 @@ export function SongDetailModal({ song, isOpen, onClose, onRate }: SongDetailMod
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}>✕</button>
+    <div className="song-detail-overlay" onClick={onClose}>
+      <div className="song-detail-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="song-detail-close" onClick={onClose} aria-label="Close dialog">
+          ✕
+        </button>
 
-        <div className="song-detail-container">
-          {/* Song Details */}
-          <div className="song-info-section">
-            {isInTop100 && (
-              <div className="top-100-badge top-100-badge-inline">Top #{topRank}</div>
-            )}
-            <h2 className="song-title">{song.title}</h2>
-
-            <div className="song-meta">
-              <div className="meta-item">
-                <span className="meta-label">Artist</span>
-                <span className="meta-value">{song.artistName}</span>
+        <div className="song-detail-hero">
+          <div className="song-detail-art-wrap">
+            {artworkUrl ? (
+              <img className="song-detail-art" src={artworkUrl} alt={song.title} />
+            ) : (
+              <div className="song-detail-art song-detail-art-fallback" aria-hidden="true">
+                {getFallbackMonogram(song.title, song.artistName)}
               </div>
+            )}
 
-              {song.albumName && (
-                <div className="meta-item">
-                  <span className="meta-label">Album</span>
-                  <span className="meta-value">{song.albumName}</span>
-                </div>
-              )}
+            {isInTop100 ? <div className="song-detail-rank-badge">Top #{topRank}</div> : null}
+          </div>
 
-              {song.genre && (
-                <div className="meta-item">
-                  <span className="meta-label">Genre</span>
-                  <span className="meta-value">{song.genre}</span>
-                </div>
-              )}
+          <div className="song-detail-copy">
+            <div className="song-detail-kicker">Featured track</div>
+            <h2 className="song-title">{song.title}</h2>
+            <div className="song-detail-artist">{song.artistName}</div>
+
+            <div className="song-detail-meta-row">
+              {song.albumName ? <span className="song-detail-chip">{song.albumName}</span> : null}
+              {song.genre ? <span className="song-detail-chip">{song.genre}</span> : null}
             </div>
 
-            {/* Preview Player */}
-            {song.previewUrl && (
-              <div className="preview-section">
-                <label>Preview</label>
+            <div className="song-detail-action-row">
+              <a
+                href={itunesUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="button itunes-link song-detail-primary-action"
+              >
+                Open in iTunes
+              </a>
+            </div>
+
+            {song.previewUrl ? (
+              <div className="song-detail-preview">
+                <div className="song-detail-preview-label">Preview</div>
                 <audio controls className="audio-player">
                   <source src={song.previewUrl} type="audio/mpeg" />
                   Your browser does not support the audio element.
                 </audio>
               </div>
-            )}
-
-            {/* Rating Stats and Form */}
-            <div className="rating-section">
-              {myRating != null ? (
-                <div className="rating-stats" style={{ marginBottom: 10 }}>
-                  <label>You already rated this</label>
-                  <div className="rating-display">
-                    <span className="rating-value">{myRating}/10</span>
-                    <span className="muted" style={{ marginLeft: 8 }}>
-                      (you can update it below)
-                    </span>
-                  </div>
-                </div>
-              ) : null}
-              {songData && songData.ratingCount > 0 ? (
-                <div className="rating-stats">
-                  <label>Community Rating</label>
-                  <div className="rating-display">
-                    <span className="rating-value">
-                      {songData.actualRating?.toFixed(1) || "N/A"}/10
-                    </span>
-                    <span className="rating-count">
-                      ({songData.ratingCount} {songData.ratingCount === 1 ? "rating" : "ratings"})
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="rating-stats">
-                  <label>No ratings yet</label>
-                  <p className="no-ratings-text">Be the first to rate this song!</p>
-                </div>
-              )}
-
-              <div className="rating-form">
-                <label htmlFor="rate-select">
-                  {myRating == null ? "Rate this song" : `You rated this ${myRating}/10`}
-                </label>
-                <div className="rating-row">
-                  <select
-                    id="rate-select"
-                    value={rating}
-                    onChange={(e) => {
-                      const nextRating = e.target.value;
-                      setRating(nextRating);
-                      handleRate(nextRating);
-                    }}
-                    disabled={ratingLoading}
-                    className="rating-select"
-                  >
-                    <option value="">{ratingLoading ? "Saving..." : "Rate"}</option>
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                      <option key={num} value={num}>
-                        {num}/10
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {ratingError && <div className="error-message">{ratingError}</div>}
-              </div>
-            </div>
-
-            {/* iTunes Link */}
-            <div className="external-links">
-              <a
-                href={`https://music.apple.com/search?term=${encodeURIComponent(song.title)} ${encodeURIComponent(song.artistName)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="button itunes-link"
-              >
-                Open in iTunes
-              </a>
-            </div>
+            ) : null}
           </div>
         </div>
+
+        <div className="song-detail-grid">
+          <section className="song-detail-panel">
+            <div className="song-detail-panel-label">Rating</div>
+            {loading ? (
+              <div className="muted">Loading rating data…</div>
+            ) : songData && songData.ratingCount > 0 ? (
+              <div className="song-detail-rating-row">
+                <div className="song-detail-rating-value">{songData.actualRating?.toFixed(1) ?? "N/A"}/10</div>
+                <div className="song-detail-rating-meta">
+                  {songData.ratingCount} {songData.ratingCount === 1 ? "vote" : "votes"}
+                </div>
+              </div>
+            ) : (
+              <div className="muted">Be the first to rate it.</div>
+            )}
+          </section>
+
+          <section className="song-detail-panel">
+            <div className="song-detail-panel-label">{myRating == null ? "Rate this song" : "Update your rating"}</div>
+            {myRating != null ? <div className="song-detail-saved">Saved: {myRating}/10</div> : null}
+            <div className="rating-row">
+              <select
+                id="rate-select"
+                value={rating}
+                onChange={(e) => {
+                  const nextRating = e.target.value;
+                  setRating(nextRating);
+                  void handleRate(nextRating);
+                }}
+                disabled={ratingLoading}
+                className="rating-select"
+              >
+                <option value="">{ratingLoading ? "Saving..." : "Choose"}</option>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                  <option key={num} value={num}>
+                    {num}/10
+                  </option>
+                ))}
+              </select>
+            </div>
+            {ratingError ? <div className="error-message">{ratingError}</div> : null}
+          </section>
+        </div>
       </div>
-
-      <style>{`
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.74);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1100;
-          animation: fadeIn 0.2s ease-in-out;
-        }
-
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-
-        .modal-content {
-          background: #141416;
-          border: 1px solid rgba(255, 255, 255, 0.14);
-          border-radius: 8px;
-          box-shadow: 0 18px 60px rgba(0, 0, 0, 0.42);
-          max-width: 560px;
-          width: 90%;
-          max-height: 90vh;
-          overflow-y: auto;
-          position: relative;
-          animation: slideUp 0.3s ease-out;
-        }
-
-        @keyframes slideUp {
-          from {
-            transform: translateY(20px);
-            opacity: 0;
-          }
-          to {
-            transform: translateY(0);
-            opacity: 1;
-          }
-        }
-
-        .modal-close {
-          position: absolute;
-          top: 12px;
-          right: 12px;
-          background: none;
-          border: none;
-          font-size: 24px;
-          cursor: pointer;
-          z-index: 1101;
-          padding: 4px 8px;
-          color: rgba(245, 245, 245, 0.72);
-          transition: color 0.2s;
-        }
-
-        .modal-close:hover {
-          color: #fff;
-        }
-
-        .song-detail-container {
-          padding: 24px;
-          display: block;
-          gap: 20px;
-          align-items: start;
-        }
-
-        .top-100-badge {
-          background: #f5f5f5;
-          color: #141416;
-          padding: 8px 12px;
-          border-radius: 20px;
-          font-weight: bold;
-          font-size: 14px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .top-100-badge-inline {
-          display: inline-block;
-          margin-bottom: 10px;
-        }
-
-        .song-info-section {
-          flex: 1;
-        }
-
-        .song-title {
-          margin: 0 0 12px 0;
-          font-size: 24px;
-          color: #f5f5f5;
-          padding-right: 36px;
-        }
-
-        .song-meta {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-          margin-bottom: 16px;
-          padding: 12px;
-          background: rgba(255, 255, 255, 0.06);
-          border-radius: 8px;
-        }
-
-        .meta-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .meta-label {
-          font-size: 12px;
-          text-transform: uppercase;
-          color: rgba(245, 245, 245, 0.62);
-          font-weight: 600;
-          letter-spacing: 0.5px;
-        }
-
-        .meta-value {
-          color: #f5f5f5;
-          font-weight: 500;
-          text-align: right;
-          flex: 1;
-          margin-left: 12px;
-          word-break: break-word;
-        }
-
-        .preview-section {
-          margin: 16px 0;
-          padding: 12px;
-          background: rgba(255, 255, 255, 0.06);
-          border-radius: 8px;
-        }
-
-        .preview-section label {
-          display: block;
-          margin-bottom: 8px;
-          font-weight: 600;
-          color: #f5f5f5;
-        }
-
-        .audio-player {
-          width: 100%;
-          border-radius: 4px;
-        }
-
-        .rating-section {
-          margin: 16px 0;
-          padding: 12px;
-          background: rgba(122, 162, 255, 0.12);
-          border-radius: 8px;
-          border: 1px solid rgba(122, 162, 255, 0.28);
-        }
-
-        .rating-section label {
-          display: block;
-          margin-bottom: 10px;
-          font-weight: 600;
-          color: #f5f5f5;
-        }
-
-        .rating-stats {
-          margin-bottom: 12px;
-        }
-
-        .rating-display {
-          display: flex;
-          align-items: baseline;
-          gap: 8px;
-          margin-top: 8px;
-        }
-
-        .rating-value {
-          font-size: 32px;
-          font-weight: 700;
-          color: #cfe0ff;
-        }
-
-        .rating-count {
-          font-size: 14px;
-          color: rgba(245, 245, 245, 0.62);
-          font-weight: 500;
-        }
-
-        .no-ratings-text {
-          margin: 6px 0 0 0;
-          font-size: 14px;
-          color: rgba(245, 245, 245, 0.62);
-          font-style: italic;
-        }
-
-        .rate-button {
-          width: 100%;
-          padding: 10px 16px;
-          margin-top: 8px;
-          background: rgba(255, 255, 255, 0.16);
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s;
-          font-size: 14px;
-        }
-
-        .rate-button:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(122, 162, 255, 0.28);
-        }
-
-        .rating-form {
-          margin-top: 12px;
-        }
-
-        .rating-form label {
-          font-size: 14px;
-          margin-bottom: 8px;
-        }
-
-        .rating-row {
-          display: flex;
-          gap: 8px;
-          align-items: center;
-        }
-
-        .rating-select {
-          flex: 1;
-          padding: 8px;
-          border: 1px solid rgba(255, 255, 255, 0.14);
-          border-radius: 8px;
-          background: rgba(0, 0, 0, 0.35);
-          color: #f5f5f5;
-          font-size: 14px;
-        }
-
-        .rating-select:disabled {
-          background: rgba(255, 255, 255, 0.08);
-          cursor: not-allowed;
-        }
-
-        .rating-row button {
-          padding: 8px 12px;
-          border: none;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-          font-size: 13px;
-          transition: all 0.2s;
-        }
-
-        .rating-row button.primary {
-          background: rgba(255, 255, 255, 0.16);
-          color: white;
-        }
-
-        .rating-row button.primary:hover:not(:disabled) {
-          background: rgba(255, 255, 255, 0.22);
-          transform: translateY(-1px);
-        }
-
-        .rating-row button.primary:disabled {
-          background: rgba(255, 255, 255, 0.08);
-          cursor: not-allowed;
-        }
-
-        .rating-row button.secondary {
-          background: rgba(255, 255, 255, 0.10);
-          color: #f5f5f5;
-        }
-
-        .rating-row button.secondary:hover {
-          background: rgba(255, 255, 255, 0.16);
-        }
-
-        .error-message {
-          color: #ffb4b4;
-          font-size: 13px;
-          margin-top: 6px;
-        }
-
-        .external-links {
-          display: flex;
-          gap: 8px;
-          margin-top: 12px;
-        }
-
-        .itunes-link {
-          flex: 1;
-          padding: 10px 16px;
-          text-align: center;
-          text-decoration: none;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s;
-          font-size: 14px;
-        }
-
-        .itunes-link:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-
-        @media (max-width: 720px) {
-          .modal-content {
-            max-width: 95%;
-            max-height: 95vh;
-          }
-
-          .song-detail-container {
-            padding: 16px;
-            gap: 16px;
-          }
-
-          .song-title {
-            font-size: 20px;
-          }
-
-          .meta-item {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-
-          .meta-value {
-            text-align: left;
-            margin-left: 0;
-            margin-top: 4px;
-          }
-        }
-      `}</style>
     </div>
   );
 }

@@ -309,7 +309,10 @@ export default function HomePage() {
     }
   }
 
-  function openSongDetail(song: ExternalSongResult) {
+  function openSongDetail(song: ExternalSongResult, options?: { closeAlbum?: boolean }) {
+    if (options?.closeAlbum) {
+      closeAlbumDetail();
+    }
     setSelectedSong(song);
     setIsModalOpen(true);
   }
@@ -838,7 +841,7 @@ export default function HomePage() {
                           </div>
 
                           <div className="song-result-actions">
-                            <button type="button" onClick={() => openSongDetail(song)}>
+                            <button type="button" onClick={() => openSongDetail(song, { closeAlbum: true })}>
                               Full details
                             </button>
                           </div>
@@ -944,7 +947,7 @@ export default function HomePage() {
                           </div>
 
                           <div className="song-result-actions">
-                            <button type="button" onClick={() => openSongDetail(song)}>
+                            <button type="button" onClick={() => openSongDetail(song, { closeAlbum: true })}>
                               Full details
                             </button>
                           </div>
@@ -977,35 +980,38 @@ export default function HomePage() {
 
       {selectedAlbum && (
         <div className="app-modal-overlay" onClick={closeAlbumDetail}>
-          <div className="app-modal app-modal-wide" onClick={(e) => e.stopPropagation()}>
+          <div className="app-modal app-modal-wide album-detail-modal" onClick={(e) => e.stopPropagation()}>
             <button className="app-modal-close" type="button" onClick={closeAlbumDetail}>✕</button>
-            <div className="album-dialog-head">
+
+            <div className="album-detail-hero">
               {getLargeArtworkUrl(selectedAlbum.imageUrl) ? (
                 <img
-                  className="album-dialog-art"
+                  className="album-detail-art"
                   src={getLargeArtworkUrl(selectedAlbum.imageUrl) ?? undefined}
                   alt={selectedAlbum.title}
                 />
               ) : (
-                <div className="album-dialog-art album-thumb-empty" aria-hidden="true">Album</div>
+                <div className="album-detail-art album-detail-art-empty" aria-hidden="true">Album</div>
               )}
-              <div>
-                <h3>{selectedAlbum.title}</h3>
-                <div className="muted">by {selectedAlbum.artistName}</div>
-                <div className="dialog-actions">
+
+              <div className="album-detail-copy">
+                <div className="song-detail-kicker">Album view</div>
+                <h3 className="album-detail-title">{selectedAlbum.title}</h3>
+                <div className="album-detail-artist">by {selectedAlbum.artistName}</div>
+                <div className="dialog-actions album-detail-actions">
                   <a
-                    className="button"
+                    className="button album-detail-primary-action"
                     href={selectedAlbum.albumUrl || `https://music.apple.com/search?term=${encodeURIComponent(selectedAlbum.title)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    iTunes
+                    Open in iTunes
                   </a>
                 </div>
               </div>
             </div>
 
-            <h4 className="dialog-section-title">Songs</h4>
+            <h4 className="dialog-section-title album-detail-section-title">Songs</h4>
             {albumSongsLoading ? (
               <div className="muted">Loading songs...</div>
             ) : albumSongs.length === 0 ? (
