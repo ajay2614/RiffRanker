@@ -1,14 +1,42 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, getAuthToken } from "../api/client";
 import { SongDetailModal } from "../components/SongDetailModal";
-import type { ExternalSongResult, ExternalArtist, ExternalAlbumResult, SongDto } from "../api/types";
+import type { ArtistNewsArticle, ExternalSongResult, ExternalArtist, ExternalAlbumResult, SongDto } from "../api/types";
 
 type ArtistInfo = {
   summary: string | null;
   imageUrl: string | null;
   sourceUrl: string | null;
 };
+
+type SpotlightArtist = {
+  name: string;
+  songs: Array<{ song: SongDto; rank: number }>;
+};
+
+function getTrackDisplayTitle(title: string) {
+  return title
+    .replace(/\s*(?:\([^)]*remaster(?:ed)?[^)]*\)|\[[^\]]*remaster(?:ed)?[^\]]*\])\s*$/i, "")
+    .trim();
+}
+
+function getAlbumTrackDisplayTitle(title: string, albumSongs: ExternalSongResult[]) {
+  const remasterSuffix = /\s*(?:\([^)]*remaster[^)]*\)|\[[^\]]*remaster[^\]]*\])\s*$/i;
+  const suffixes = albumSongs
+    .map((song) => song.title.match(remasterSuffix)?.[0].trim().toLowerCase())
+    .filter((suffix): suffix is string => Boolean(suffix));
+
+  if (suffixes.length < 2 || suffixes.length < Math.ceil(albumSongs.length * 0.6)) return getTrackDisplayTitle(title);
+
+  const suffixCounts = new Map<string, number>();
+  suffixes.forEach((suffix) => suffixCounts.set(suffix, (suffixCounts.get(suffix) ?? 0) + 1));
+  const commonSuffix = [...suffixCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (!commonSuffix || commonSuffix[1] < Math.ceil(albumSongs.length * 0.6)) return getTrackDisplayTitle(title);
+
+  const escapedSuffix = commonSuffix[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return getTrackDisplayTitle(title.replace(new RegExp(`${escapedSuffix}$`, "i"), "").trim());
+}
 
 export default function HomePage() {
   const [params, setParams] = useSearchParams();
@@ -39,11 +67,78 @@ export default function HomePage() {
   const [artistInfo, setArtistInfo] = useState<ArtistInfo | null>(null);
   const [artistImageUrl, setArtistImageUrl] = useState<string | null>(null);
   const [artistDetailLoading, setArtistDetailLoading] = useState(false);
+  const [artistBioExpanded, setArtistBioExpanded] = useState(false);
   const [artistTopSongs, setArtistTopSongs] = useState<ExternalSongResult[]>([]);
   const [artistOtherSongs, setArtistOtherSongs] = useState<ExternalSongResult[]>([]);
+  const [topSongs, setTopSongs] = useState<SongDto[]>([]);
+  const [topSongsLoading, setTopSongsLoading] = useState(true);
+  const [topSongsError, setTopSongsError] = useState<string | null>(null);
+  const [artistNews, setArtistNews] = useState<Record<string, ArtistNewsArticle[]>>({});
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [artistSpotlightSeed] = useState(() => Math.random());
+  const [selectedSpotlightArtist, setSelectedSpotlightArtist] = useState<SpotlightArtist | null>(null);
+  const [expandedSpotlightSongId, setExpandedSpotlightSongId] = useState<string | null>(null);
+  const albumRequestId = useRef(0);
   const limit = 5;
 
   const canSearch = useMemo(() => q.trim().length > 0, [q]);
+
+  useEffect(() => {
+    if (initial) return;
+
+    setQ("");
+    setHasSearched(false);
+    setLoading(false);
+    setError(null);
+    setExternalResults([]);
+    setExternalArtists([]);
+    setExternalAlbums([]);
+    setActiveType("songs");
+    setExpandedSongId(null);
+    setSelectedSong(null);
+    setIsModalOpen(false);
+    setSelectedArtist(null);
+    setSelectedAlbum(null);
+    setSelectedSpotlightArtist(null);
+  }, [initial]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    api.songs.top()
+      .then((songs) => {
+        if (cancelled) return;
+        const rankedSongs = [...songs].sort((a, b) => {
+          const weightedDiff = (b.weightedRating ?? Number.NEGATIVE_INFINITY) - (a.weightedRating ?? Number.NEGATIVE_INFINITY);
+          if (weightedDiff !== 0) return weightedDiff;
+
+          const votesDiff = b.ratingCount - a.ratingCount;
+          if (votesDiff !== 0) return votesDiff;
+
+          const actualDiff = (b.actualRating ?? Number.NEGATIVE_INFINITY) - (a.actualRating ?? Number.NEGATIVE_INFINITY);
+          if (actualDiff !== 0) return actualDiff;
+
+          return a.title.localeCompare(b.title);
+        });
+        setTopSongs(rankedSongs);
+        setExistingSongData((current) => ({
+          ...current,
+          ...Object.fromEntries(songs.map((song) => [song.id, song] as const))
+        }));
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setTopSongsError(err instanceof Error ? err.message : String(err));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTopSongsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function getLargeArtworkUrl(imageUrl: string | null) {
     return imageUrl?.replace(/\/\d+x\d+bb\.(jpg|png|webp)$/i, "/600x600bb.$1") ?? null;
@@ -111,6 +206,16 @@ export default function HomePage() {
     return songs.filter((song) => {
       if (seen.has(song.id)) return false;
       seen.add(song.id);
+      return true;
+    });
+  }
+
+  function dedupeSearchSongs(songs: ExternalSongResult[]) {
+    const seen = new Set<string>();
+    return songs.filter((song) => {
+      const identity = `${normalizeText(getTrackDisplayTitle(song.title))}::${normalizeText(song.artistName)}`;
+      if (seen.has(identity)) return false;
+      seen.add(identity);
       return true;
     });
   }
@@ -267,7 +372,7 @@ export default function HomePage() {
         ] as const;
       });
 
-      setExternalResults(songsData.results);
+      setExternalResults(dedupeSearchSongs(songsData.results));
       setExternalArtists(artistsData.artists);
       setArtistInfoCache(nextArtistInfoCache);
       setArtistImages(Object.fromEntries(imageEntries));
@@ -310,9 +415,12 @@ export default function HomePage() {
   }
 
   function openSongDetail(song: ExternalSongResult, options?: { closeAlbum?: boolean }) {
-    if (options?.closeAlbum) {
-      closeAlbumDetail();
+    if (selectedSpotlightArtist) {
+      setSelectedSpotlightArtist(null);
+      setExpandedSpotlightSongId(null);
     }
+    if (selectedArtist) closeArtistDetail();
+    if (selectedAlbum || options?.closeAlbum) closeAlbumDetail();
     setSelectedSong(song);
     setIsModalOpen(true);
   }
@@ -326,6 +434,7 @@ export default function HomePage() {
     const cachedInfo = getCachedArtistInfo(artist);
     setSelectedArtist(artist);
     setArtistDetailLoading(true);
+    setArtistBioExpanded(false);
     setArtistInfo(cachedInfo);
     setArtistImageUrl(cachedInfo?.imageUrl ?? getCachedArtistImage(artist));
     setArtistTopSongs([]);
@@ -376,54 +485,69 @@ export default function HomePage() {
     setArtistInfo(null);
     setArtistImageUrl(null);
     setArtistDetailLoading(false);
+    setArtistBioExpanded(false);
     setArtistTopSongs([]);
     setArtistOtherSongs([]);
     setExpandedArtistSongId(null);
   }
 
   async function openAlbumDetail(album: ExternalAlbumResult) {
+    const requestId = albumRequestId.current + 1;
+    albumRequestId.current = requestId;
     setSelectedAlbum(album);
     setAlbumSongs([]);
     setExpandedAlbumSongId(null);
     setAlbumSongsLoading(true);
     try {
-      const queries = [
-        `${album.title} ${album.artistName}`.trim(),
-        album.title,
-        album.artistName
-      ].filter(Boolean);
-
-      const results = await Promise.all(
-        queries.map((query) => api.songs.searchExternal(query, 12, 0).catch(() => ({ results: [] })))
+      let nextAlbumSongs = dedupeSongs(
+        (await api.songs.searchExternalAlbumTracks(album.id).catch(() => ({ results: [] }))).results
       );
 
-      const merged = dedupeSongs(results.flatMap((entry) => entry.results));
-      const albumTitle = normalizeText(album.title);
-      const albumArtist = normalizeText(album.artistName);
-      const preferred = merged
-        .map((song) => {
-          const songAlbum = normalizeText(song.albumName);
-          const songArtist = normalizeText(song.artistName);
-          const albumMatch = songAlbum === albumTitle ? 3 : songAlbum.includes(albumTitle) ? 2 : 0;
-          const artistMatch = songArtist === albumArtist ? 2 : songArtist.includes(albumArtist) ? 1 : 0;
-          const previewBonus = song.previewUrl ? 1 : 0;
-          return { song, score: albumMatch + artistMatch + previewBonus };
-        })
-        .filter(({ score }) => score > 0)
-        .sort((a, b) => b.score - a.score)
-        .map(({ song }) => song);
+      if (nextAlbumSongs.length === 0) {
+        const baseAlbumTitle = album.title
+          .replace(/\s*[\[(].*?(deluxe|remaster|edition).*?[\])]/gi, "")
+          .trim();
+        const albumTitle = normalizeText(baseAlbumTitle || album.title);
+        const albumArtist = normalizeText(album.artistName);
+        const alternateAlbums = await api.songs
+          .searchExternalAlbums(`${album.title} ${album.artistName}`, 20)
+          .catch(() => ({ results: [] }));
 
-      const nextAlbumSongs = (preferred.length > 0 ? preferred : merged).slice(0, 8);
+        for (const alternateAlbum of alternateAlbums.results) {
+          if (alternateAlbum.id === album.id || normalizeText(alternateAlbum.artistName) !== albumArtist) continue;
+          const alternateTitle = normalizeText(alternateAlbum.title);
+          if (!alternateTitle.includes(albumTitle) && !albumTitle.includes(alternateTitle)) continue;
+          const alternateTracks = await api.songs
+            .searchExternalAlbumTracks(alternateAlbum.id)
+            .catch(() => ({ results: [] }));
+          if (alternateTracks.results.length > 0) {
+            nextAlbumSongs = dedupeSongs(alternateTracks.results);
+            break;
+          }
+        }
+
+        if (nextAlbumSongs.length > 0) {
+          if (requestId !== albumRequestId.current) return;
+          setAlbumSongs(nextAlbumSongs);
+          await loadRatingDataForSongs(nextAlbumSongs);
+          return;
+        }
+
+        nextAlbumSongs = [];
+      }
+
+      if (requestId !== albumRequestId.current) return;
       setAlbumSongs(nextAlbumSongs);
       await loadRatingDataForSongs(nextAlbumSongs);
     } catch {
-      setAlbumSongs([]);
+      if (requestId === albumRequestId.current) setAlbumSongs([]);
     } finally {
-      setAlbumSongsLoading(false);
+      if (requestId === albumRequestId.current) setAlbumSongsLoading(false);
     }
   }
 
   function closeAlbumDetail() {
+    albumRequestId.current += 1;
     setSelectedAlbum(null);
     setAlbumSongs([]);
     setAlbumSongsLoading(false);
@@ -460,13 +584,70 @@ export default function HomePage() {
     };
   }
 
+  function getTopRankForSong(song: Pick<ExternalSongResult, "id" | "title" | "artistName">) {
+    const rank = topSongs.findIndex((topSong) => topSong.id === song.id || getSongIdentity(topSong) === getSongIdentity(song));
+    return rank === -1 ? null : rank + 1;
+  }
+
+  const featuredArtists = useMemo(() => {
+    const grouped = new Map<string, SpotlightArtist>();
+
+    topSongs.forEach((song, index) => {
+      const existing = grouped.get(song.artistName);
+      const entry = { song, rank: index + 1 };
+      if (existing) {
+        existing.songs.push(entry);
+      } else {
+        grouped.set(song.artistName, { name: song.artistName, songs: [entry] });
+      }
+    });
+
+    const candidates = [...grouped.values()]
+      .sort((a, b) => a.songs[0].rank - b.songs[0].rank)
+      .slice(0, 12);
+
+    return candidates
+      .sort((a, b) => {
+        const score = (name: string) => {
+          let value = Math.floor(artistSpotlightSeed * 100000);
+          for (const character of name) value = (value * 31 + character.charCodeAt(0)) % 100000;
+          return value;
+        };
+        return score(a.name) - score(b.name);
+      })
+      .slice(0, 3);
+  }, [artistSpotlightSeed, topSongs]);
+
+  useEffect(() => {
+    if (featuredArtists.length === 0) return;
+
+    let cancelled = false;
+    setNewsLoading(true);
+    Promise.all(
+      featuredArtists.map(async (artist) => {
+        const articles = await api.artists.news(artist.name, 3).catch(() => []);
+        return [artist.name, articles] as const;
+      })
+    )
+      .then((entries) => {
+        if (!cancelled) setArtistNews(Object.fromEntries(entries));
+      })
+      .finally(() => {
+        if (!cancelled) setNewsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [featuredArtists]);
+
   return (
     <div className="search-page">
       <div className="card search-hero">
         <div className="search-hero-copy">
-          <div className="top-kicker">Search iTunes</div>
-          <h2 className="search-hero-title">Discover songs, artists, and albums</h2>
-          <div className="muted">Search and open details in a consistent cinematic layout.</div>
+          <div className="top-kicker">Search the catalog</div>
+          <h2 className="search-hero-title">Find your next favorite song</h2>
+          <div className="muted">Search for a song, artist, or album and see how it ranks.</div>
         </div>
 
         <form onSubmit={onSubmit} className="search-form">
@@ -480,9 +661,207 @@ export default function HomePage() {
           </button>
         </form>
         <div className="muted search-examples">
-          Examples: Queen, Metallica, Bohemian Rhapsody, Enter Sandman
+          Try Queen, Metallica, Bohemian Rhapsody, or Enter Sandman
         </div>
       </div>
+
+      {!hasSearched ? (
+      <section className="card home-chart" aria-labelledby="home-chart-title">
+        <div className="home-chart-head">
+          <div>
+            <div className="top-kicker">From the chart</div>
+            <h3 id="home-chart-title">Featured songs</h3>
+            <p className="muted">A few artists and songs currently making the Top 100.</p>
+          </div>
+          <Link className="button home-chart-link" to="/top">View Top 100 →</Link>
+        </div>
+
+        {topSongsLoading ? (
+          <div className="muted home-chart-status">Loading the current chart…</div>
+        ) : topSongsError ? (
+          <div className="muted home-chart-status">The chart is unavailable right now. Try the Top page again shortly.</div>
+        ) : featuredArtists.length === 0 ? (
+          <div className="muted home-chart-status">The chart is ready for its first ratings.</div>
+        ) : (
+          <div className="home-band-list">
+            {featuredArtists.map((artist) => {
+              const featuredSong = artist.songs[0].song;
+              const artworkUrl = getLargeArtworkUrl(featuredSong.imageUrl);
+              const fallbackLabel = artist.name
+                .split(" ")
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((part) => part[0])
+                .join("")
+                .toUpperCase() || "RR";
+
+              return (
+                <article className="home-band-card" key={artist.name}>
+                  {artworkUrl ? (
+                    <img className="home-band-art" src={artworkUrl} alt="" />
+                  ) : (
+                    <span className="home-band-art home-band-art-fallback" aria-hidden="true">
+                      {fallbackLabel}
+                    </span>
+                  )}
+                  <div className="home-band-content">
+                    <div className="top-kicker">Top 100 spotlight</div>
+                    <h4>{artist.name}</h4>
+                    <div className="home-band-news">
+                      <div className="top-kicker">Latest news</div>
+                      {newsLoading && !artistNews[artist.name] ? (
+                        <div className="muted">Fetching the latest headline…</div>
+                      ) : artistNews[artist.name]?.[0] ? (
+                        <a
+                          className="home-band-headline"
+                          href={artistNews[artist.name][0].link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {artistNews[artist.name][0].title}
+                        </a>
+                      ) : (
+                        <div className="muted">No recent headline found.</div>
+                      )}
+                      {artistNews[artist.name]?.[0]?.source ? (
+                        <span className="home-band-source">{artistNews[artist.name][0].source}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="home-band-open"
+                    onClick={() => {
+                      setSelectedSpotlightArtist(artist);
+                      setExpandedSpotlightSongId(null);
+                    }}
+                  >
+                    {artist.songs.length} song{artist.songs.length === 1 ? "" : "s"} in Top 100
+                    <span aria-hidden="true">→</span>
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      ) : null}
+
+      {selectedSpotlightArtist && !isModalOpen ? (
+        <div className="app-modal-overlay" onClick={() => setSelectedSpotlightArtist(null)}>
+          <div className="app-modal app-modal-wide spotlight-dialog" onClick={(event) => event.stopPropagation()}>
+            <button className="app-modal-close" type="button" onClick={() => setSelectedSpotlightArtist(null)} aria-label="Close band dialog">✕</button>
+            <div className="top-kicker">Band spotlight</div>
+            <h3 className="spotlight-dialog-title">{selectedSpotlightArtist.name}</h3>
+
+            <section className="spotlight-news">
+              <div className="top-kicker">Latest news</div>
+              {newsLoading && !artistNews[selectedSpotlightArtist.name] ? (
+                <div className="muted">Fetching the latest headline…</div>
+              ) : artistNews[selectedSpotlightArtist.name]?.[0] ? (
+                <>
+                  <a
+                    className="spotlight-news-headline"
+                    href={artistNews[selectedSpotlightArtist.name][0].link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {artistNews[selectedSpotlightArtist.name][0].title}
+                  </a>
+                  {artistNews[selectedSpotlightArtist.name][0].source ? (
+                    <span className="home-band-source">{artistNews[selectedSpotlightArtist.name][0].source}</span>
+                  ) : null}
+                </>
+              ) : (
+                <div className="muted">No recent headline found.</div>
+              )}
+            </section>
+
+            <h4 className="dialog-section-title">Songs in the Top 100</h4>
+            <div className="spotlight-song-list">
+              {selectedSpotlightArtist.songs.map(({ song, rank }) => (
+                <div
+                  className={`song-result spotlight-song-result ${expandedSpotlightSongId === song.id ? "is-expanded" : ""}`}
+                  key={song.id}
+                >
+                  <div className="song-result-header spotlight-song-result-header">
+                    <div className="song-result-main">
+                      <span className="song-search-rank-badge">Top #{rank}</span>
+                      <span className="song-result-title">{getTrackDisplayTitle(song.title)}</span>
+                      <span className="song-result-meta">
+                        {song.artistName}
+                        {song.albumName ? ` · ${song.albumName}` : ""}
+                        {song.genre ? ` · ${song.genre}` : ""}
+                      </span>
+                      {myRatings[song.id] != null ? (
+                        <span className="song-result-yours">You rated this {myRatings[song.id]}/10</span>
+                      ) : null}
+                    </div>
+                    <div className="song-result-rating">
+                      {(() => {
+                        const summary = getRatingSummary(song.id);
+                        return <><strong>{summary.value}</strong><span>{summary.count}</span></>;
+                      })()}
+                    </div>
+                    <div className="song-result-rate song-result-rate-main">
+                      <select
+                        value={inlineRatings[song.id] ?? ""}
+                        onChange={(event) => {
+                          const nextRating = event.target.value;
+                          setInlineRatings((current) => ({ ...current, [song.id]: nextRating }));
+                          handleInlineRate(songDtoToExternal(song), nextRating);
+                        }}
+                        disabled={ratingSongId === song.id}
+                        aria-label={`Rate ${song.title}`}
+                      >
+                        <option value="">{ratingSongId === song.id ? "Saving..." : "Rate"}</option>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                          <option key={num} value={num}>{num}/10</option>
+                        ))}
+                      </select>
+                    </div>
+                    {getLargeArtworkUrl(song.imageUrl) ? (
+                      <img className="song-result-thumb" src={getLargeArtworkUrl(song.imageUrl) ?? undefined} alt={song.albumName || song.title} />
+                    ) : (
+                      <span className="song-result-thumb song-result-thumb-empty" aria-hidden="true">Note</span>
+                    )}
+                    <button
+                      type="button"
+                      className="song-result-toggle"
+                      onClick={() => setExpandedSpotlightSongId((current) => current === song.id ? null : song.id)}
+                      aria-expanded={expandedSpotlightSongId === song.id}
+                      aria-label={expandedSpotlightSongId === song.id ? `Hide details for ${song.title}` : `Show details for ${song.title}`}
+                    >
+                      <span className="song-result-caret" aria-hidden="true">{expandedSpotlightSongId === song.id ? "⌃" : "⌄"}</span>
+                    </button>
+                  </div>
+                  {expandedSpotlightSongId === song.id ? (
+                    <div className="song-result-panel">
+                      <div className="song-result-panel-body">
+                        <div className="song-result-preview">
+                          <div className="song-preview-label">Preview</div>
+                          {getPreviewUrlFromSongUrl(song.songUrl) ? (
+                            <audio controls className="song-inline-audio">
+                              <source src={getPreviewUrlFromSongUrl(song.songUrl) ?? undefined} type="audio/mpeg" />
+                              Your browser does not support the audio element.
+                            </audio>
+                          ) : (
+                            <div className="muted">No preview available for this song.</div>
+                          )}
+                        </div>
+                        <div className="song-result-actions">
+                          <button type="button" onClick={() => openSongDetail(songDtoToExternal(song))}>Full details</button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {!hasSearched ? null : error ? (
         <div style={{ marginTop: 12, color: "#ffb4b4" }}>{error}</div>
@@ -519,7 +898,6 @@ export default function HomePage() {
             <section className="search-section">
               <div className="search-section-head">
                 <h4 className="search-section-title">Songs</h4>
-                <Link className="pill" to="/admin/songs">Admin</Link>
               </div>
               {externalResults.length === 0 ? (
                 <div className="muted search-empty">No songs yet.</div>
@@ -532,7 +910,10 @@ export default function HomePage() {
                     >
                       <div className="song-result-header">
                         <div className="song-result-main">
-                          <span className="song-result-title">{s.title}</span>
+                        {getTopRankForSong(s) ? (
+                          <span className="song-search-rank-badge">Top #{getTopRankForSong(s)}</span>
+                        ) : null}
+                          <span className="song-result-title">{getTrackDisplayTitle(s.title)}</span>
                           <span className="song-result-meta">
                             {s.artistName}
                             {s.albumName ? ` · ${s.albumName}` : ""}
@@ -603,6 +984,7 @@ export default function HomePage() {
                         <div className="song-result-panel">
                           <div className="song-result-panel-body">
                             <div className="song-result-preview">
+                              <div className="song-preview-label">Preview</div>
                               {s.previewUrl ? (
                                 <audio controls className="song-inline-audio">
                                   <source src={s.previewUrl} type="audio/mpeg" />
@@ -630,7 +1012,6 @@ export default function HomePage() {
             <section className="search-section">
               <div className="search-section-head">
                 <h4 className="search-section-title">Artists</h4>
-                <Link className="pill" to="/admin/artists">Admin</Link>
               </div>
               {externalArtists.length === 0 ? (
                 <div className="muted search-empty">No artists found</div>
@@ -737,9 +1118,20 @@ export default function HomePage() {
             {artistDetailLoading ? (
               <div className="artist-summary muted">Loading artist details...</div>
             ) : artistInfo?.summary ? (
-              <div className="artist-summary">
+              <>
+              <div className={`artist-summary ${artistBioExpanded ? "is-expanded" : ""}`}>
                 {artistInfo.summary}
               </div>
+              {artistInfo.summary.length > 220 ? (
+                <button
+                  type="button"
+                  className="artist-bio-toggle"
+                  onClick={() => setArtistBioExpanded((expanded) => !expanded)}
+                >
+                  {artistBioExpanded ? "Show less" : "Read more"}
+                </button>
+              ) : null}
+              </>
             ) : (
               <div className="artist-summary muted">
                 No artist biography found. Showing available catalog and RiffRank details.
@@ -767,7 +1159,10 @@ export default function HomePage() {
                   >
                     <div className="song-result-header artist-song-result-header">
                       <div className="song-result-main">
-                        <span className="song-result-title">{song.title}</span>
+                        {getTopRankForSong(song) ? (
+                          <span className="song-search-rank-badge">Top #{getTopRankForSong(song)}</span>
+                        ) : null}
+                        <span className="song-result-title">{getTrackDisplayTitle(song.title)}</span>
                         <span className="song-result-meta">
                           {song.artistName}
                           {song.albumName ? ` · ${song.albumName}` : ""}
@@ -836,6 +1231,7 @@ export default function HomePage() {
                       <div className="song-result-panel">
                         <div className="song-result-panel-body">
                           <div className="song-result-preview">
+                            <div className="song-preview-label">Preview</div>
                             {song.previewUrl ? (
                               <audio controls className="song-inline-audio">
                                 <source src={song.previewUrl} type="audio/mpeg" />
@@ -873,7 +1269,7 @@ export default function HomePage() {
                   >
                     <div className="song-result-header artist-song-result-header">
                       <div className="song-result-main">
-                        <span className="song-result-title">{song.title}</span>
+                        <span className="song-result-title">{getTrackDisplayTitle(song.title)}</span>
                         <span className="song-result-meta">
                           {song.artistName}
                           {song.albumName ? ` · ${song.albumName}` : ""}
@@ -942,6 +1338,7 @@ export default function HomePage() {
                       <div className="song-result-panel">
                         <div className="song-result-panel-body">
                           <div className="song-result-preview">
+                            <div className="song-preview-label">Preview</div>
                             {song.previewUrl ? (
                               <audio controls className="song-inline-audio">
                                 <source src={song.previewUrl} type="audio/mpeg" />
@@ -1031,7 +1428,10 @@ export default function HomePage() {
                   >
                     <div className="song-result-header album-song-result-header">
                       <div className="song-result-main">
-                        <span className="song-result-title">{song.title}</span>
+                        {getTopRankForSong(song) ? (
+                          <span className="song-search-rank-badge">Top #{getTopRankForSong(song)}</span>
+                        ) : null}
+                        <span className="song-result-title">{getAlbumTrackDisplayTitle(song.title, albumSongs)}</span>
                         <span className="song-result-meta">
                           {song.artistName}
                           {song.albumName ? ` · ${song.albumName}` : ""}
@@ -1100,6 +1500,7 @@ export default function HomePage() {
                       <div className="song-result-panel">
                         <div className="song-result-panel-body">
                           <div className="song-result-preview">
+                            <div className="song-preview-label">Preview</div>
                             {song.previewUrl ? (
                               <audio controls className="song-inline-audio">
                                 <source src={song.previewUrl} type="audio/mpeg" />

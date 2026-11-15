@@ -4,6 +4,9 @@ import type {
   ExternalArtistSearchResult,
   ExternalSearchResult,
   ExternalTopResult,
+  ArtistNewsArticle,
+  MyRatedSong,
+  UserProfile,
   Genre,
   SongDto
 } from "./types";
@@ -58,7 +61,10 @@ export const api = {
         password
       }),
     login: (username: string, password: string) =>
-      request<{ token: string }>("POST", "/api/users/login", { username, password })
+      request<{ token: string }>("POST", "/api/users/login", { username, password }),
+    profile: () => request<UserProfile>("GET", "/api/users/profile"),
+    updateProfile: (profile: UserProfile) =>
+      request<UserProfile>("PATCH", "/api/users/profile", profile)
   },
   songs: {
     search: (q: string) => request<SongDto[]>("GET", `/api/songs/search?q=${encodeURIComponent(q)}`),
@@ -66,6 +72,8 @@ export const api = {
       request<ExternalSearchResult>("GET", `/api/songs/search/itunes?q=${encodeURIComponent(q)}&limit=${limit}&offset=${offset}`),
     searchExternalAlbums: (q: string, limit: number = 10) =>
       request<ExternalAlbumSearchResult>("GET", `/api/songs/search/itunes/albums?q=${encodeURIComponent(q)}&limit=${limit}`),
+    searchExternalAlbumTracks: (collectionId: string) =>
+      request<ExternalSearchResult>("GET", `/api/songs/search/itunes/albums/${encodeURIComponent(collectionId)}/tracks`),
     searchExternalTop: (q: string) =>
       request<ExternalTopResult>("GET", `/api/songs/search/itunes/top?q=${encodeURIComponent(q)}`),
     top: () => request<SongDto[]>("GET", `/api/songs/top`),
@@ -86,6 +94,7 @@ export const api = {
       }),
     myRating: (id: string) =>
       request<{ value: number }>("GET", `/api/songs/${encodeURIComponent(id)}/ratings/me`),
+    myRatings: () => request<MyRatedSong[]>("GET", "/api/songs/ratings/me"),
     create: (
       adminKey: string,
       payload: {
@@ -135,6 +144,8 @@ export const api = {
   },
   artists: {
     get: (id: string) => request<ArtistDto>("GET", `/api/artists/${encodeURIComponent(id)}`),
+    news: (name: string, limit: number = 3) =>
+      request<ArtistNewsArticle[]>("GET", `/api/artists/news?name=${encodeURIComponent(name)}&limit=${limit}`),
     search: (name: string) =>
       request<ArtistDto[]>("GET", `/api/artists/search?name=${encodeURIComponent(name)}`),
     searchExternal: (q: string, limit: number = 10, offset: number = 0) =>

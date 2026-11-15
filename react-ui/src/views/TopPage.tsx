@@ -29,6 +29,12 @@ function getPreviewUrlFromSongUrl(songUrl: string | null) {
   return /\.(m4a|mp3|aac|wav|ogg)(\?|$)/i.test(songUrl) ? songUrl : null;
 }
 
+function getTrackDisplayTitle(title: string) {
+  return title
+    .replace(/\s*(?:\([^)]*remaster(?:ed)?[^)]*\)|\[[^\]]*remaster(?:ed)?[^\]]*\])\s*$/i, "")
+    .trim();
+}
+
 function getGenreStyle(genre?: string) {
   return genreColorMap[genre || "OTHER"] || genreColorMap.OTHER;
 }
@@ -187,7 +193,7 @@ export default function TopPage() {
       <section className="card top-hero">
         <div className="top-hero-copy">
           <h1>Top 100</h1>
-          <p className="muted">Current chart.</p>
+          <p className="muted">The songs leading RiffRank right now.</p>
         </div>
 
         <div className="top-hero-meta">
@@ -272,7 +278,7 @@ export default function TopPage() {
                       className="song-title-button"
                       onClick={() => openSongDetail(song)}
                     >
-                      {song.title}
+                      {getTrackDisplayTitle(song.title)}
                     </button>
                     <div className="song-artist">{song.artistName}</div>
                   </div>

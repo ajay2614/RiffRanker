@@ -17,6 +17,10 @@ function getItunesSearchUrl(title: string, artistName: string) {
   return `https://music.apple.com/search?term=${encodeURIComponent(title)} ${encodeURIComponent(artistName)}`;
 }
 
+function normalizeSongIdentityPart(value: string | null | undefined) {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 function getFallbackMonogram(title: string, artistName: string) {
   const seed = (artistName || title)
     .split(" ")
@@ -26,6 +30,21 @@ function getFallbackMonogram(title: string, artistName: string) {
     .join("")
     .toUpperCase();
   return seed || "RR";
+}
+
+function rankSongs(songs: SongDto[]) {
+  return [...songs].sort((a, b) => {
+    const weightedDiff = (b.weightedRating ?? Number.NEGATIVE_INFINITY) - (a.weightedRating ?? Number.NEGATIVE_INFINITY);
+    if (weightedDiff !== 0) return weightedDiff;
+
+    const votesDiff = b.ratingCount - a.ratingCount;
+    if (votesDiff !== 0) return votesDiff;
+
+    const actualDiff = (b.actualRating ?? Number.NEGATIVE_INFINITY) - (a.actualRating ?? Number.NEGATIVE_INFINITY);
+    if (actualDiff !== 0) return actualDiff;
+
+    return a.title.localeCompare(b.title);
+  });
 }
 
 export function SongDetailModal({ song, isOpen, onClose, onRate }: SongDetailModalProps) {
@@ -61,7 +80,11 @@ export function SongDetailModal({ song, isOpen, onClose, onRate }: SongDetailMod
         if (songInfo) setSongData(songInfo);
         setMyRating(mine);
 
-        const rank = topSongs.findIndex((s) => s.id === song.id);
+        const songIdentity = `${normalizeSongIdentityPart(song.title)}::${normalizeSongIdentityPart(song.artistName)}`;
+        const rank = rankSongs(topSongs).findIndex((topSong) =>
+          topSong.id === song.id ||
+          `${normalizeSongIdentityPart(topSong.title)}::${normalizeSongIdentityPart(topSong.artistName)}` === songIdentity
+        );
         if (rank !== -1) {
           setTopRank(rank + 1);
           setIsInTop100(true);

@@ -1,6 +1,7 @@
 package com.riffrank.artist.web;
 
 import com.riffrank.artist.client.ITunesArtistClient;
+import com.riffrank.artist.client.GoogleNewsClient;
 import com.riffrank.artist.model.Artist;
 import com.riffrank.artist.repo.ArtistRepository;
 import java.time.Instant;
@@ -21,10 +22,15 @@ import org.springframework.web.server.ResponseStatusException;
 public class ArtistController {
   private final ArtistRepository artistRepository;
   private final ITunesArtistClient iTunesArtistClient;
+  private final GoogleNewsClient googleNewsClient;
 
-  public ArtistController(ArtistRepository artistRepository, ITunesArtistClient iTunesArtistClient) {
+  public ArtistController(
+      ArtistRepository artistRepository,
+      ITunesArtistClient iTunesArtistClient,
+      GoogleNewsClient googleNewsClient) {
     this.artistRepository = artistRepository;
     this.iTunesArtistClient = iTunesArtistClient;
+    this.googleNewsClient = googleNewsClient;
   }
 
   @PostMapping("/artists")
@@ -87,6 +93,16 @@ public class ArtistController {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name query is required");
     }
     return artistRepository.findTop25ByNameContainingIgnoreCaseOrderByNameAsc(name.trim());
+  }
+
+  @GetMapping("/artists/news")
+  public List<ArtistNewsArticle> news(
+      @RequestParam("name") String name,
+      @RequestParam(value = "limit", defaultValue = "3") int limit) {
+    if (name == null || name.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "name query is required");
+    }
+    return googleNewsClient.search(name.trim(), limit);
   }
 
   @GetMapping("/artists/search/itunes")

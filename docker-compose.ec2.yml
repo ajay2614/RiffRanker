@@ -62,6 +62,21 @@ services:
       - mysql
       - eureka-server
 
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    container_name: riffrank-user
+    environment:
+      SPRING_PROFILES_ACTIVE: mysql
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/riffrank_user
+      SPRING_DATASOURCE_USERNAME: riffrank
+      SPRING_DATASOURCE_PASSWORD: riffrank
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    depends_on:
+      - mysql
+      - eureka-server
+
   web-ui:
     build:
       context: .

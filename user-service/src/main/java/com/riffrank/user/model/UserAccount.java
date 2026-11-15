@@ -3,6 +3,7 @@ package com.riffrank.user.model;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
@@ -23,6 +24,16 @@ public class UserAccount {
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 
+  @Column(name = "display_name", length = 40)
+  private String displayName;
+
+  @Lob
+  @Column(name = "avatar_data", columnDefinition = "LONGTEXT")
+  private String avatarData;
+
+  @Column(name = "avatar_content_type", length = 50)
+  private String avatarContentType;
+
   public UserAccount() {}
 
   public UserAccount(UUID id, String username, String passwordHash, Instant createdAt) {
@@ -40,5 +51,11 @@ public class UserAccount {
   public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
   public Instant getCreatedAt() { return createdAt; }
   public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+  public String getDisplayName() { return displayName; }
+  public void setDisplayName(String displayName) { this.displayName = displayName; }
+  public String getAvatarData() { return avatarData; }
+  public void setAvatarData(String avatarData) { this.avatarData = avatarData; }
+  public String getAvatarContentType() { return avatarContentType; }
+  public void setAvatarContentType(String avatarContentType) { this.avatarContentType = avatarContentType; }
 }
 

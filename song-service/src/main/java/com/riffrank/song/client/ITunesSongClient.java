@@ -14,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 public class ITunesSongClient {
   private static final Logger logger = LoggerFactory.getLogger(ITunesSongClient.class);
   private static final String BASE_URL = "https://itunes.apple.com/search";
+  private static final String LOOKUP_URL = "https://itunes.apple.com/lookup";
   private final RestTemplate restTemplate;
 
   public ITunesSongClient(RestTemplate restTemplate) {
@@ -45,10 +46,65 @@ public class ITunesSongClient {
 
       logger.info("Querying iTunes API (albums): {}", url);
       ITunesAlbumSearchResult result = restTemplate.getForObject(url, ITunesAlbumSearchResult.class);
-      return result != null ? result : new ITunesAlbumSearchResult(0, new java.util.ArrayList<>());
+      List<ITunesAlbum> albums = result != null && result.getResults() != null
+          ? new java.util.ArrayList<>(result.getResults())
+          : new java.util.ArrayList<>();
+
+      // iTunes often buries famous albums behind newer singles with the same title.
+      // Cross-check matching song results so exact album-title matches can be promoted.
+      ITunesSearchResult songMatches = searchSongs(query, Math.max(50, limit * 5));
+      String normalizedQuery = normalizeAlbumTitle(query);
+      List<ITunesAlbum> exactMatches = new java.util.ArrayList<>();
+      if (songMatches.getResults() != null) {
+        for (ITunesSong song : songMatches.getResults()) {
+          if (song.getCollectionId() <= 0 || !normalizedQuery.equals(normalizeAlbumTitle(song.getCollectionName()))) {
+            continue;
+          }
+          boolean alreadyPresent = albums.stream()
+              .anyMatch(album -> album.getCollectionId() == song.getCollectionId());
+          if (!alreadyPresent && exactMatches.stream()
+              .noneMatch(album -> album.getCollectionId() == song.getCollectionId())) {
+            ITunesAlbum album = new ITunesAlbum();
+            album.setCollectionId(song.getCollectionId());
+            album.setCollectionName(song.getCollectionName());
+            album.setArtistName(song.getArtistName());
+            album.setArtworkUrl100(song.getArtworkUrl100());
+            album.setCollectionViewUrl(song.getCollectionViewUrl());
+            exactMatches.add(album);
+          }
+        }
+      }
+      exactMatches.addAll(albums);
+      return new ITunesAlbumSearchResult(exactMatches.size(), exactMatches);
     } catch (RestClientException e) {
       logger.error("Error querying iTunes API (albums)", e);
       throw new RuntimeException("Failed to fetch album data from iTunes", e);
+    }
+  }
+
+  private static String normalizeAlbumTitle(String value) {
+    return value == null ? "" : value.toLowerCase()
+        .replaceAll("\\([^)]*\\)|\\[[^]]*\\]", "")
+        .replaceAll("\\s+", " ")
+        .trim();
+  }
+
+  public ITunesSearchResult lookupAlbumTracks(String collectionId) {
+    try {
+      String url = String.format(
+          "%s?id=%s&entity=song&limit=200&country=US",
+          LOOKUP_URL,
+          URLEncoder.encode(collectionId, StandardCharsets.UTF_8));
+      logger.info("Querying iTunes API for album tracks: {}", url);
+      ITunesSearchResult result = restTemplate.getForObject(url, ITunesSearchResult.class);
+      if (result == null || result.getResults() == null) {
+        return new ITunesSearchResult(0, new java.util.ArrayList<>());
+      }
+      result.setResults(result.getResults().stream().filter(song -> song.getTrackId() != 0).toList());
+      return result;
+    } catch (RestClientException e) {
+      logger.error("Error querying iTunes API for album tracks", e);
+      throw new RuntimeException("Failed to fetch album tracks from iTunes", e);
     }
   }
 
@@ -193,16 +249,20 @@ public class ITunesSongClient {
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class ITunesSong {
     private long trackId;
+    private long collectionId;
     private String trackName;
     private String artistName;
     private String collectionName;
     private String artworkUrl100;
     private String previewUrl;
+    private String collectionViewUrl;
 
     public ITunesSong() {}
 
     public long getTrackId() { return trackId; }
     public void setTrackId(long trackId) { this.trackId = trackId; }
+    public long getCollectionId() { return collectionId; }
+    public void setCollectionId(long collectionId) { this.collectionId = collectionId; }
     public String getTrackName() { return trackName; }
     public void setTrackName(String trackName) { this.trackName = trackName; }
     public String getArtistName() { return artistName; }
@@ -213,5 +273,7 @@ public class ITunesSongClient {
     public void setArtworkUrl100(String artworkUrl100) { this.artworkUrl100 = artworkUrl100; }
     public String getPreviewUrl() { return previewUrl; }
     public void setPreviewUrl(String previewUrl) { this.previewUrl = previewUrl; }
+    public String getCollectionViewUrl() { return collectionViewUrl; }
+    public void setCollectionViewUrl(String collectionViewUrl) { this.collectionViewUrl = collectionViewUrl; }
   }
 }

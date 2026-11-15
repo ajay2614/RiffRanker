@@ -31,8 +31,15 @@ public class AuthHeaderFilter implements GlobalFilter, Ordered {
     boolean isMyRatingRead =
         exchange.getRequest().getMethod() == HttpMethod.GET
             && path.matches("^/api/songs/[^/]+/ratings/me$");
+    boolean isMyRatingsRead =
+        exchange.getRequest().getMethod() == HttpMethod.GET
+            && path.equals("/api/songs/ratings/me");
+    boolean isProfileRequest =
+        (exchange.getRequest().getMethod() == HttpMethod.GET
+            || exchange.getRequest().getMethod() == HttpMethod.PATCH)
+            && path.equals("/api/users/profile");
 
-    if (!isRatingWrite && !isMyRatingRead) {
+    if (!isRatingWrite && !isMyRatingRead && !isMyRatingsRead && !isProfileRequest) {
       return chain.filter(exchange);
     }
 

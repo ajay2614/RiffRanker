@@ -25,6 +25,18 @@ export type SongDto = {
   weightedRating: number | null;
 };
 
+export type MyRatedSong = {
+  song: SongDto;
+  value: number;
+  updatedAt: string;
+};
+
+export type UserProfile = {
+  displayName: string | null;
+  avatarData: string | null;
+  avatarContentType: string | null;
+};
+
 export type ArtistDto = {
   id: string;
   name: string;
@@ -107,4 +119,11 @@ export type ExternalArtistSearchResult = {
   count: number;
   offset: number;
   artists: ExternalArtist[];
+};
+
+export type ArtistNewsArticle = {
+  title: string;
+  link: string;
+  source: string | null;
+  publishedAt: string | null;
 };

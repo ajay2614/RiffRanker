@@ -320,6 +320,18 @@ public class SongController {
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "no rating"));
   }
 
+  @GetMapping("/songs/ratings/me")
+  public List<MyRatedSongResponse> myRatings(
+      @RequestHeader(value = "X-USER-ID", required = false) String userIdHeader) {
+    UUID userId = requireUserId(userIdHeader);
+    return songRatingRepository.findByUserIdOrderByUpdatedAtDesc(userId).stream()
+        .map(rating -> songRepository.findById(rating.getSongId())
+            .map(song -> new MyRatedSongResponse(SongDto.from(song, null), rating.getValue(), rating.getUpdatedAt()))
+            .orElse(null))
+        .filter(java.util.Objects::nonNull)
+        .toList();
+  }
+
   @GetMapping("/songs/search/itunes")
   public ExternalSearchResult searchITunes(
       @RequestParam("q") String q,
@@ -340,6 +352,14 @@ public class SongController {
     }
     ITunesSongClient.ITunesAlbumSearchResult iTunesResult = iTunesSongClient.searchAlbums(q.trim(), limit);
     return ExternalAlbumSearchResult.fromITunes(iTunesResult);
+  }
+
+  @GetMapping("/songs/search/itunes/albums/{collectionId}/tracks")
+  public ExternalSearchResult searchITunesAlbumTracks(@PathVariable String collectionId) {
+    if (collectionId == null || collectionId.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "collectionId is required");
+    }
+    return ExternalSearchResult.fromITunes(iTunesSongClient.lookupAlbumTracks(collectionId.trim()));
   }
 
   @GetMapping("/songs/search/itunes/top")
@@ -493,4 +513,6 @@ public class SongController {
   }
 
   public record MyRatingResponse(int value) {}
+
+  public record MyRatedSongResponse(SongDto song, int value, Instant updatedAt) {}
 }
