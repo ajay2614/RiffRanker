@@ -461,28 +461,34 @@ export default function HomePage() {
   }
 
   return (
-    <div className="card">
-      <h2 style={{ marginTop: 0 }}>Search iTunes</h2>
+    <div className="search-page">
+      <div className="card search-hero">
+        <div className="search-hero-copy">
+          <div className="top-kicker">Search iTunes</div>
+          <h2 className="search-hero-title">Discover songs, artists, and albums</h2>
+          <div className="muted">Search and open details in a consistent cinematic layout.</div>
+        </div>
 
-      <form onSubmit={onSubmit} className="row">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search songs or artists…"
-        />
-        <button className="primary" type="submit" disabled={!canSearch || loading}>
-          {loading ? "Searching…" : "Search"}
-        </button>
-      </form>
-      <div className="muted" style={{ marginTop: 8 }}>
-        Examples: Queen, Metallica, Bohemian Rhapsody, Enter Sandman
+        <form onSubmit={onSubmit} className="search-form">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search songs, artists, or albums…"
+          />
+          <button className="primary" type="submit" disabled={!canSearch || loading}>
+            {loading ? "Searching…" : "Search"}
+          </button>
+        </form>
+        <div className="muted search-examples">
+          Examples: Queen, Metallica, Bohemian Rhapsody, Enter Sandman
+        </div>
       </div>
 
       {!hasSearched ? null : error ? (
         <div style={{ marginTop: 12, color: "#ffb4b4" }}>{error}</div>
       ) : (
-        <div style={{ marginTop: 14 }}>
-          <div className="row" style={{ gap: 8, marginTop: 12 }}>
+        <div className="search-results-shell">
+          <div className="search-type-tabs">
             <button
               type="button"
               className={activeType === "songs" ? "primary" : ""}
@@ -504,19 +510,19 @@ export default function HomePage() {
               className={activeType === "albums" ? "primary" : ""}
               onClick={() => setActiveType("albums")}
               disabled={loading}
-            >
-              Albums
-            </button>
+              >
+                Albums
+              </button>
           </div>
 
           {activeType === "songs" ? (
-            <div style={{ marginTop: 12 }}>
-              <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
-                <h4 style={{ margin: 0 }}>Songs</h4>
+            <section className="search-section">
+              <div className="search-section-head">
+                <h4 className="search-section-title">Songs</h4>
                 <Link className="pill" to="/admin/songs">Admin</Link>
               </div>
               {externalResults.length === 0 ? (
-                <div className="muted" style={{ marginTop: 8 }}>No songs yet.</div>
+                <div className="muted search-empty">No songs yet.</div>
               ) : (
                 <div className="song-results-list">
                   {externalResults.slice(0, 5).map((s) => (
@@ -619,15 +625,15 @@ export default function HomePage() {
                   ))}
                 </div>
               )}
-            </div>
+            </section>
           ) : activeType === "artists" ? (
-            <div style={{ marginTop: 12 }}>
-              <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
-                <h4 style={{ margin: 0 }}>Artists</h4>
+            <section className="search-section">
+              <div className="search-section-head">
+                <h4 className="search-section-title">Artists</h4>
                 <Link className="pill" to="/admin/artists">Admin</Link>
               </div>
               {externalArtists.length === 0 ? (
-                <div className="muted" style={{ marginTop: 8 }}>No artists found</div>
+                <div className="muted search-empty">No artists found</div>
               ) : (
                 <div className="artist-results-list">
                   {externalArtists.slice(0, 5).map((artist) => (
@@ -656,14 +662,14 @@ export default function HomePage() {
                   ))}
                 </div>
               )}
-            </div>
+            </section>
           ) : (
-            <div style={{ marginTop: 12 }}>
-              <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
-                <h4 style={{ margin: 0 }}>Albums</h4>
+            <section className="search-section">
+              <div className="search-section-head">
+                <h4 className="search-section-title">Albums</h4>
               </div>
               {externalAlbums.length === 0 ? (
-                <div className="muted" style={{ marginTop: 8 }}>No albums found</div>
+                <div className="muted search-empty">No albums found</div>
               ) : (
                 <div className="album-results-list">
                   {externalAlbums.slice(0, 5).map((album) => (
@@ -690,7 +696,7 @@ export default function HomePage() {
                   ))}
                 </div>
               )}
-            </div>
+            </section>
           )}
         </div>
       )}
